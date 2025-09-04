@@ -24,5 +24,28 @@ contextBridge.exposeInMainWorld('oai', {
       expires_at: data.expires_at ?? null,
       session: data.session ?? null
     };
+  },
+
+  /**
+   * Execute a tool in the main process via secure IPC.
+   * Tools run with full system access in the main process while 
+   * renderer stays sandboxed.
+   *
+   * Usage in renderer:
+   * const result = await window.oai.executeTool('take_screenshot', {});
+   *
+   * @param {string} name - Tool name to execute
+   * @param {Object} args - Tool arguments
+   * @returns {Promise<any>} Tool execution result
+   */
+  async executeTool(name, args) {
+    if (typeof name !== 'string') {
+      throw new Error('Tool name must be a string');
+    }
+    if (args && typeof args !== 'object') {
+      throw new Error('Tool args must be an object');
+    }
+    
+    return await ipcRenderer.invoke('tool:execute', { name, args: args || {} });
   }
 });

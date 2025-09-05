@@ -18,7 +18,17 @@ Use this tool liberally whenever:
 - User's request could benefit from seeing their current context
 - You sense the user might be looking at something relevant
 
-BE PROACTIVE: When in doubt, take a screenshot. Visual context dramatically improves your ability to help users. This tool is fast and should be used generously to provide the best possible assistance.
+BE PROACTIVE: When in doubt, take a screenshot. Visual context dramatically improves your ability to help users.
+
+ANALYSIS INSTRUCTIONS: When you receive a screenshot, be thorough and analytical:
+- Read ALL visible text carefully, including error messages, button labels, and menu items
+- Describe the UI layout and important visual elements before providing guidance
+- Quote specific text you see when relevant (file names, error codes, labels)
+- Identify the active application or context
+- Note any visual indicators like highlights, selections, or cursor positions
+- Look for details that might be important for troubleshooting or assistance
+
+This tool provides high-quality images optimized for text readability, so analyze them comprehensively.
 `.trim(),
   parameters: {
     type: "object",

@@ -89,168 +89,102 @@ function status(msg) {
 
 
 
-// Send screenshot via base64 method
 async function sendScreenshot(callInfo, result) {
-  try {
-    // Send function call output
-    const functionOutput = {
-      type: 'conversation.item.create',
-      event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      item: {
-        type: 'function_call_output',
-        call_id: callInfo.event.call_id,
-        output: JSON.stringify({
-          success: true,
-          message: `Screenshot captured: ${result.width}x${result.height}`
-        })
-      }
-    };
-    
-    dataChannel.send(JSON.stringify(functionOutput));
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Send image
-    const imageMessage = {
-      type: 'conversation.item.create',
-      event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      item: {
-        type: 'message',
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: `Screenshot of my screen (${result.width}x${result.height}). Please analyze this image.`
-          },
-          {
-            type: 'input_image',
-            image_url: `data:image/${result.imageFormat || 'jpeg'};base64,${result.image}`,
-            detail: 'high'
-          }
-        ]
-      }
-    };
-    
-    dataChannel.send(JSON.stringify(imageMessage));
-    await triggerResponseCreation();
-    
-  } catch (error) {
-    console.error('Screenshot send failed:', error);
-  }
+  // Send function call output
+  const functionOutput = {
+    type: 'conversation.item.create',
+    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    item: {
+      type: 'function_call_output',
+      call_id: callInfo.event.call_id,
+      output: JSON.stringify({
+        success: true,
+        message: `Screenshot captured: ${result.width}x${result.height}`
+      })
+    }
+  };
+  
+  dataChannel.send(JSON.stringify(functionOutput));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Send image
+  const imageMessage = {
+    type: 'conversation.item.create',
+    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    item: {
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: `Screenshot of my screen (${result.width}x${result.height}). Please analyze this image.`
+        },
+        {
+          type: 'input_image',
+          image_url: `data:image/${result.imageFormat || 'jpeg'};base64,${result.image}`,
+          detail: 'high'
+        }
+      ]
+    }
+  };
+  
+  dataChannel.send(JSON.stringify(imageMessage));
+  await triggerResponseCreation();
 }
 
 
 
 
-// Send function call result back to OpenAI
 async function sendFunctionCallResult(callInfo, result) {
-  if (!dataChannel || dataChannel.readyState !== 'open') {
-    console.error('Data channel not available');
+  // For screenshot results, use dedicated screenshot sender
+  if ((result.imageUrl || result.image) && result.source === 'desktopCapturer') {
+    await sendScreenshot(callInfo, result);
     return;
   }
   
-  try {
-    // For screenshot results, use dedicated screenshot sender
-    if ((result.imageUrl || result.image) && result.source === 'desktopCapturer') {
-      await sendScreenshot(callInfo, result);
-      return;
+  // For other tools, send simple output
+  const conversationItem = {
+    type: 'conversation.item.create',
+    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    item: {
+      type: 'function_call_output',
+      call_id: callInfo.event.call_id,
+      output: JSON.stringify(result)
     }
-    
-    // For other tools, send simple output
-    const conversationItem = {
-      type: 'conversation.item.create',
-      event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      item: {
-        type: 'function_call_output',
-        call_id: callInfo.event.call_id,
-        output: JSON.stringify(result)
-      }
-    };
-    
-    dataChannel.send(JSON.stringify(conversationItem));
-    await triggerResponseCreation();
-    
-  } catch (error) {
-    console.error('Send function result failed:', error.message);
-    status('Failed to send result to AI');
-  }
+  };
+  
+  dataChannel.send(JSON.stringify(conversationItem));
+  await triggerResponseCreation();
 }
 
 
-// Trigger response creation
 async function triggerResponseCreation() {
-  if (!dataChannel || dataChannel.readyState !== 'open') {
-    console.error('Data channel not available for response creation');
-    return;
-  }
+  const responseEvent = {
+    type: 'response.create',
+    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  };
   
-  try {
-    const responseEvent = {
-      type: 'response.create',
-      event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    
-    dataChannel.send(JSON.stringify(responseEvent));
-    status('AI analyzing...');
-    
-  } catch (error) {
-    console.error('Response creation failed:', error);
-  }
+  dataChannel.send(JSON.stringify(responseEvent));
+  status('AI analyzing...');
 }
 
-// Tool execution function
 async function executeTool(functionName, args, callInfo) {
-  try {
-    const result = await window.oai.executeTool(functionName, args);
-    
-    callInfo.result = result;
-    callInfo.executed = true;
-    
-    if (result.success) {
-      status(`${functionName} completed`);
-    } else {
-      status(`${functionName} failed`);
-    }
-    
-    await sendFunctionCallResult(callInfo, result);
-    
-  } catch (error) {
-    console.error('Tool execution error:', error.message);
-    
-    const errorResult = {
-      success: false,
-      error: error.message,
-      source: 'execution_error',
-      timestamp: Date.now()
-    };
-    
-    callInfo.result = errorResult;
-    callInfo.executed = true;
-    
-    await sendFunctionCallResult(callInfo, errorResult);
-  }
+  const result = await window.oai.executeTool(functionName, args);
+  
+  callInfo.result = result;
+  callInfo.executed = true;
+  
+  status(result.success ? `${functionName} completed` : `${functionName} failed`);
+  await sendFunctionCallResult(callInfo, result);
 }
 
-// Data channel handlers setup
 function setupDataChannelHandlers() {
-  if (!dataChannel) return;
-  
-  dataChannel.onopen = () => {
-    console.log('Data channel ready');
-  };
-  
+  dataChannel.onopen = () => console.log('Data channel ready');
   dataChannel.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      handleRealtimeEvent(data);
-    } catch (error) {
-      console.error('Data channel parse error:', error);
-    }
+    const data = JSON.parse(event.data);
+    handleRealtimeEvent(data);
   };
-  
-  dataChannel.onerror = (error) => {
-    console.error('Data channel error:', error);
-  };
-  
+  dataChannel.onerror = (error) => console.error('Data channel error:', error);
   dataChannel.onclose = () => {
     console.log('Data channel closed');
     dataChannel = null;
@@ -294,7 +228,6 @@ function handleFunctionCallStarted(event) {
 }
 
 function clearFunctionCallsForResponse(responseId) {
-  // Clean up completed function calls
   for (const [callId, callInfo] of activeFunctionCalls.entries()) {
     if (callInfo.responseId === responseId) {
       activeFunctionCalls.delete(callId);
@@ -304,23 +237,13 @@ function clearFunctionCallsForResponse(responseId) {
 
 function handleFunctionCallDone(event) {
   const callInfo = activeFunctionCalls.get(event.call_id);
-  if (!callInfo) {
-    console.error('Function call ID not found:', event.call_id);
-    return;
-  }
+  if (!callInfo) return;
   
-  try {
-    const args = JSON.parse(event.arguments || '{}');
-    const functionName = callInfo.name;
-    
-    callInfo.arguments = args;
-    callInfo.completed = true;
-    callInfo.event = event;
-    
-    status(`Executing ${functionName}...`);
-    executeTool(functionName, args, callInfo);
-    
-  } catch (error) {
-    console.error('Function arguments parse error:', error);
-  }
+  const args = JSON.parse(event.arguments || '{}');
+  callInfo.arguments = args;
+  callInfo.completed = true;
+  callInfo.event = event;
+  
+  status(`Executing ${callInfo.name}...`);
+  executeTool(callInfo.name, args, callInfo);
 }

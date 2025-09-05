@@ -52,16 +52,14 @@ class ToolRegistry {
     try {
       const tool = require(toolPath);
       
-      // Validate tool exports
       if (!tool.schema || !tool.executor) {
-        console.warn(`Tool ${displayName} missing required exports (schema, executor)`);
+        console.warn(`Tool ${displayName} missing required exports`);
         return;
       }
       
-      // Register tool
       const toolName = tool.schema.name;
       this.tools.set(toolName, tool);
-      console.log(`Registered tool: ${toolName} (${displayName})`);
+      console.log(`Registered tool: ${toolName}`);
       
     } catch (error) {
       console.error(`Failed to load tool ${displayName}:`, error.message);
@@ -97,46 +95,15 @@ class ToolRegistry {
    * @returns {Promise<any>} Tool execution result
    */
   async executeTool(name, args) {
-    console.log('🔧 === TOOL REGISTRY EXECUTION ===');
-    console.log('🛠️ Requested tool:', name);
-    console.log('📋 Tool arguments:', args);
-    console.log('📊 Registry has', this.tools.size, 'registered tools');
-    console.log('🔧 Available tools:', Array.from(this.tools.keys()));
-    
     const executor = this.getToolExecutor(name);
     if (!executor) {
-      console.error('❌ === TOOL NOT FOUND ===');
-      console.error('🔍 Requested tool:', name);
-      console.error('📋 Available tools:', Array.from(this.tools.keys()));
       throw new Error(`Tool '${name}' not found`);
     }
     
-    console.log('✅ Tool executor found for:', name);
-    console.log('🚀 Executing tool...');
-    
-    const startTime = Date.now();
-    
     try {
       const result = await executor(args);
-      const executionTime = Date.now() - startTime;
-      
-      console.log('✅ === TOOL REGISTRY EXECUTION COMPLETED ===');
-      console.log('🛠️ Tool:', name);
-      console.log('⏱️ Registry execution time:', executionTime + 'ms');
-      console.log('📊 Result type:', typeof result);
-      console.log('✅ Success:', result?.success);
-      
       return result;
-      
     } catch (error) {
-      const executionTime = Date.now() - startTime;
-      
-      console.error('❌ === TOOL REGISTRY EXECUTION FAILED ===');
-      console.error('🛠️ Tool:', name);
-      console.error('⏱️ Failed after:', executionTime + 'ms');
-      console.error('💥 Error from tool:', error.message);
-      console.error('🔍 Full error:', error);
-      
       throw error;
     }
   }

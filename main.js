@@ -28,10 +28,7 @@ function createWindow() {
 ipcMain.handle('oai:getEphemeral', async () => {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
   
-  // Get tool schemas for session registration
   const toolSchemas = toolRegistry.getToolSchemas();
-  console.log(`Registering ${toolSchemas.length} tools with OpenAI session:`, 
-    toolSchemas.map(t => t.name).join(', '));
   
   const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
@@ -55,22 +52,12 @@ ipcMain.handle('oai:getEphemeral', async () => {
     throw new Error(`Mint failed: ${r.status} ${text}`);
   }
 
-  // Contains { client_secret: { value, expires_at, ... }, ... }
   return r.json();
 });
 
 // Tool execution IPC handler
 ipcMain.handle('tool:execute', async (event, { name, args }) => {
-  console.log('🔧 === IPC TOOL EXECUTION REQUEST ===');
-  console.log('🛠️ Tool name:', name);
-  console.log('📋 Arguments:', JSON.stringify(args, null, 2));
-  console.log('🔒 Executing in main process (secure)');
-  console.log('⏰ Request time:', new Date().toISOString());
-  
-  const startTime = Date.now();
-  
   try {
-    // Validate inputs
     if (typeof name !== 'string') {
       throw new Error('Tool name must be a string');
     }
@@ -78,63 +65,19 @@ ipcMain.handle('tool:execute', async (event, { name, args }) => {
       throw new Error('Tool args must be an object');
     }
 
-    console.log('✅ Input validation passed');
-    console.log('🔍 Looking up tool in registry...');
-
-    // Execute tool via registry
     const result = await toolRegistry.executeTool(name, args);
-    const executionTime = Date.now() - startTime;
-    
-    console.log('✅ === IPC TOOL EXECUTION COMPLETED ===');
-    console.log('⏱️ Total execution time:', executionTime + 'ms');
-    console.log('🎯 Tool:', name);
-    console.log('📊 Result summary:', {
-      success: result.success,
-      hasImage: result.image ? 'yes' : 'no',
-      imageSize: result.image ? `${Math.round(result.image.length / 1024)}KB` : 'n/a',
-      source: result.source,
-      width: result.width,
-      height: result.height
-    });
-    
-    if (result.success && name === 'take_screenshot') {
-      console.log('📷 Screenshot capture successful!');
-      console.log('🖼️ Image details:', {
-        dimensions: `${result.width}x${result.height}`,
-        base64Length: result.image.length,
-        sizeKB: Math.round(result.image.length / 1024),
-        timestamp: new Date(result.timestamp).toISOString()
-      });
-    }
-    
     return result;
 
   } catch (error) {
-    const executionTime = Date.now() - startTime;
-    
-    console.error('❌ === IPC TOOL EXECUTION FAILED ===');
-    console.error('⏱️ Failed after:', executionTime + 'ms');
-    console.error('🛠️ Tool:', name);
-    console.error('💥 Error type:', error.name);
-    console.error('📝 Error message:', error.message);
-    console.error('🔍 Full error:', error);
-    console.error('📋 Stack trace:', error.stack);
-    
-    // Return error in a consistent format
-    const errorResult = {
+    return {
       success: false,
       error: error.message,
       tool: name,
-      executionTime: executionTime,
       timestamp: Date.now()
     };
-    
-    console.log('📤 Returning error result to renderer:', errorResult);
-    return errorResult;
   }
 });
 
-// 5) Usual Electron lifecycle glue.
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {
@@ -143,5 +86,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
+

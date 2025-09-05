@@ -19,10 +19,10 @@ class ToolRegistry {
             const tool = require(indexPath);
             if (tool.schema && tool.executor) {
               this.tools.set(tool.schema.name, tool);
-              console.log(`Registered tool: ${tool.schema.name}`);
+              console.log(`🛠️ Loaded tool: ${tool.schema.name}`);
             }
           } catch (error) {
-            console.error(`Failed to load tool ${item}:`, error.message);
+            console.error(`❌ Failed to load tool ${item}:`, error.message);
           }
         }
       }
@@ -38,6 +38,7 @@ class ToolRegistry {
     if (!tool) {
       throw new Error(`Tool '${name}' not found`);
     }
+    
     return await tool.executor(args);
   }
 }

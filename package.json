@@ -13,6 +13,7 @@
     "electron": "^38.0.0"
   },
   "dependencies": {
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.2.2",
+    "sharp": "^0.34.3"
   }
 }

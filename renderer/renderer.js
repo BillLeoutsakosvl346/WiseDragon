@@ -12,6 +12,7 @@ btnConn.onclick = start;
 btnDisc.onclick = stop;
 
 async function start() {
+  console.log('🚀 Starting voice connection...');
   btnConn.disabled = true;
   status('Requesting microphone…');
 
@@ -21,7 +22,7 @@ async function start() {
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
-        console.log('WebRTC connected');
+        console.log('✅ WebRTC connected');
       }
     };
 
@@ -58,9 +59,10 @@ async function start() {
 
     const answer = { type: 'answer', sdp: await resp.text() };
     await pc.setRemoteDescription(answer);
+    console.log('✅ Voice connection established');
     
   } catch (error) {
-    console.error('Connection failed:', error.message);
+    console.error('❌ Connection failed:', error.message);
     status(`Connection failed: ${error.message}`);
     btnConn.disabled = false;
   }
@@ -90,6 +92,12 @@ function status(msg) {
 
 
 async function sendScreenshot(callInfo, result) {
+  const formatInfo = result.quantized 
+    ? `PNG ${result.paletteColors} colors` 
+    : `${result.imageFormat.toUpperCase()} ${result.quality}%`;
+  
+  console.log(`📤 Sending quantized ${formatInfo} to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
+  
   // Send function call output
   const functionOutput = {
     type: 'conversation.item.create',
@@ -107,7 +115,7 @@ async function sendScreenshot(callInfo, result) {
   dataChannel.send(JSON.stringify(functionOutput));
   await new Promise(resolve => setTimeout(resolve, 50));
   
-  // Send image
+  // Send image with auto detail level (PNG format for better AI text processing)
   const imageMessage = {
     type: 'conversation.item.create',
     event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -117,12 +125,12 @@ async function sendScreenshot(callInfo, result) {
       content: [
         {
           type: 'input_text',
-          text: `Screenshot of my screen (${result.width}x${result.height}). Please analyze this image.`
+          text: `Screenshot of my screen (${result.width}x${result.height}). This is a quantized PNG optimized for text clarity.`
         },
         {
           type: 'input_image',
-          image_url: `data:image/${result.imageFormat || 'jpeg'};base64,${result.image}`,
-          detail: 'high'
+          image_url: `data:image/png;base64,${result.image}`,
+          detail: 'auto'
         }
       ]
     }
@@ -179,14 +187,14 @@ async function executeTool(functionName, args, callInfo) {
 }
 
 function setupDataChannelHandlers() {
-  dataChannel.onopen = () => console.log('Data channel ready');
+  dataChannel.onopen = () => console.log('📡 Data channel ready');
   dataChannel.onmessage = (event) => {
     const data = JSON.parse(event.data);
     handleRealtimeEvent(data);
   };
-  dataChannel.onerror = (error) => console.error('Data channel error:', error);
+  dataChannel.onerror = (error) => console.error('❌ Data channel error:', error);
   dataChannel.onclose = () => {
-    console.log('Data channel closed');
+    console.log('📡 Data channel closed');
     dataChannel = null;
   };
 }
@@ -210,6 +218,8 @@ function handleFunctionCallStarted(event) {
   const item = event.item;
   const callId = item.call_id;
   const functionName = item.name;
+  
+  console.log('🤖 AI calling:', functionName);
   
   const callInfo = {
     name: functionName,

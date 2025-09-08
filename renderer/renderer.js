@@ -3,6 +3,41 @@ const audioEl = document.getElementById('assistant');
 const btnConn = document.getElementById('connect');
 const btnDisc = document.getElementById('disconnect');
 
+// Backchannel audio configuration
+const BACKCHANNEL_VOICE = 'nova'; // Choose a good voice from available recordings
+const TOTAL_PHRASES = 10; // Number of recordings per voice (1.mp3 to 10.mp3)
+
+/**
+ * Play random pre-recorded backchannel phrase instantly
+ */
+function playBackchannelAudio() {
+  try {
+    // Pick random phrase number (1-10)
+    const phraseNumber = Math.floor(Math.random() * TOTAL_PHRASES) + 1;
+    const audioPath = `../voice_recordings/${BACKCHANNEL_VOICE}/${phraseNumber}.mp3`;
+    
+    console.log(`🎤 Playing backchannel: ${BACKCHANNEL_VOICE}/phrase${phraseNumber}`);
+    
+    // Create audio element and play immediately
+    const audio = new Audio(audioPath);
+    audio.volume = 0.6; // Lower volume to not compete with main AI voice
+    
+    audio.onended = () => {
+      console.log('✅ Backchannel audio completed');
+    };
+    
+    audio.onerror = (error) => {
+      console.error('❌ Backchannel audio failed:', error);
+    };
+    
+    // Play immediately - no API delay!
+    audio.play().catch(err => console.error('Playback failed:', err));
+    
+  } catch (error) {
+    console.error('❌ Backchannel error:', error.message);
+  }
+}
+
 let pc; // RTCPeerConnection
 let localStream; // Your microphone stream
 let activeFunctionCalls = new Map(); // Track ongoing function calls
@@ -89,14 +124,8 @@ function status(msg) {
   statusEl.textContent = msg;
 }
 
-
-
 async function sendScreenshot(callInfo, result) {
-  const formatInfo = result.quantized 
-    ? `PNG ${result.paletteColors} colors` 
-    : `${result.imageFormat.toUpperCase()} ${result.quality}%`;
-  
-  console.log(`📤 Sending quantized ${formatInfo} to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
+  console.log(`📤 Sending PNG ${result.paletteColors} colors to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
   
   // Send function call output
   const functionOutput = {
@@ -115,7 +144,7 @@ async function sendScreenshot(callInfo, result) {
   dataChannel.send(JSON.stringify(functionOutput));
   await new Promise(resolve => setTimeout(resolve, 50));
   
-  // Send image with auto detail level (PNG format for better AI text processing)
+  // Send image
   const imageMessage = {
     type: 'conversation.item.create',
     event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -125,7 +154,7 @@ async function sendScreenshot(callInfo, result) {
       content: [
         {
           type: 'input_text',
-          text: `Screenshot of my screen (${result.width}x${result.height}). This is a quantized PNG optimized for text clarity.`
+          text: `Screenshot of my screen (${result.width}x${result.height}). Please analyze this image.`
         },
         {
           type: 'input_image',
@@ -139,9 +168,6 @@ async function sendScreenshot(callInfo, result) {
   dataChannel.send(JSON.stringify(imageMessage));
   await triggerResponseCreation();
 }
-
-
-
 
 async function sendFunctionCallResult(callInfo, result) {
   // For screenshot results, use dedicated screenshot sender
@@ -214,6 +240,7 @@ function handleRealtimeEvent(event) {
   }
 }
 
+
 function handleFunctionCallStarted(event) {
   const item = event.item;
   const callId = item.call_id;
@@ -231,6 +258,9 @@ function handleFunctionCallStarted(event) {
   activeFunctionCalls.set(callId, callInfo);
   
   if (functionName === 'take_screenshot') {
+    // Play backchannel at the EARLIEST possible moment
+    playBackchannelAudio(); // Instant response when AI decides to screenshot
+    
     status('Taking screenshot...');
   } else {
     status(`Calling ${functionName}...`);

@@ -1,21 +1,15 @@
 const { desktopCapturer, screen } = require('electron');
 const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 
 async function execute(args) {
   console.log('📸 Starting screenshot capture with PNG color quantization...');
   
   try {
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const maxDimension = 1080;
-    const aspectRatio = primaryDisplay.size.width / primaryDisplay.size.height;
-    
-    const thumbnailSize = aspectRatio > 1 ? {
-      width: Math.min(primaryDisplay.size.width, maxDimension),
-      height: Math.min(primaryDisplay.size.height, Math.round(maxDimension / aspectRatio))
-    } : {
-      width: Math.min(primaryDisplay.size.width, Math.round(maxDimension * aspectRatio)),
-      height: Math.min(primaryDisplay.size.height, maxDimension)
-    };
+    // OpenAI vision optimal: 1365×768 (16:9 with short-side 768px)
+    // This matches exactly what OpenAI's server will resize to anyway
+    const thumbnailSize = { width: 1365, height: 768 };
     
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
@@ -26,10 +20,10 @@ async function execute(args) {
     const maxRawSize = 150000; // 150KB limit for optimal WebRTC performance
     const inputBuffer = thumbnail.toPNG(); // Get raw PNG for Sharp processing
     
-    console.log('🎨 Starting PNG palette quantization (256 → 128 → 64 → 32 → 16 colors)...');
+    console.log('🎨 Starting PNG palette quantization (64 → 32 → 16 → 8 colors)...');
     
-    // Try different palette sizes: 256→128→64→32→16 colors (starting higher since compression is so effective)
-    const palettes = [256, 128, 64, 32, 16];
+    // Try palette sizes starting from 64 colors (sweet spot) and go down if too big
+    const palettes = [64, 32, 16, 8];
     let bestResult = null;
     
     for (const colors of palettes) {
@@ -66,24 +60,31 @@ async function execute(args) {
       }
     }
     
-    // Use the best result we found
-    let selectedBuffer = bestResult.buffer;
-    let selectedColors = bestResult.colors;
-    
     const capturedSize = thumbnail.getSize();
     
-    console.log(`✅ Quantized PNG: ${capturedSize.width}x${capturedSize.height} (${selectedColors} colors, ${selectedBuffer.length} bytes)`);
-    console.log(`🎨 Compression: ${((1 - selectedBuffer.length / inputBuffer.length) * 100).toFixed(1)}% size reduction vs original PNG`);
+    // Save processed image to screenshots_seen folder
+    const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+    const filename = `${timestamp}_${capturedSize.width}x${capturedSize.height}_${bestResult.colors}colors.png`;
+    const filePath = path.join(screenshotsDir, filename);
+    
+    fs.writeFileSync(filePath, bestResult.buffer);
+    console.log(`💾 Saved: screenshots_seen/${filename}`);
+    console.log(`✅ PNG: ${capturedSize.width}x${capturedSize.height} (${bestResult.colors} colors, ${bestResult.buffer.length} bytes)`);
     
     return {
       success: true,
-      image: selectedBuffer.toString('base64'),
+      image: bestResult.buffer.toString('base64'),
       imageFormat: 'png',
       width: capturedSize.width,
       height: capturedSize.height,
       source: 'desktopCapturer',
-      paletteColors: selectedColors,
-      fileSizeBytes: selectedBuffer.length,
+      paletteColors: bestResult.colors,
+      fileSizeBytes: bestResult.buffer.length,
       quantized: true
     };
     

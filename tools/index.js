@@ -19,7 +19,7 @@ class ToolRegistry {
             const tool = require(indexPath);
             if (tool.schema && tool.executor) {
               this.tools.set(tool.schema.name, tool);
-              console.log(`🛠️ Loaded tool: ${tool.schema.name}`);
+              console.log(`✅ Loaded: ${tool.schema.name}`);
             }
           } catch (error) {
             console.error(`❌ Failed to load tool ${item}:`, error.message);

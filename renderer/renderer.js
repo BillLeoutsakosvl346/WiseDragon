@@ -124,13 +124,18 @@ function status(msg) {
   statusEl.textContent = msg;
 }
 
+// Helper to generate unique event IDs
+function generateEventId() {
+  return `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 async function sendScreenshot(callInfo, result) {
   console.log(`📤 Sending PNG ${result.paletteColors} colors to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
   
   // Send function call output
   const functionOutput = {
     type: 'conversation.item.create',
-    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    event_id: generateEventId(),
     item: {
       type: 'function_call_output',
       call_id: callInfo.event.call_id,
@@ -147,7 +152,7 @@ async function sendScreenshot(callInfo, result) {
   // Send image
   const imageMessage = {
     type: 'conversation.item.create',
-    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    event_id: generateEventId(),
     item: {
       type: 'message',
       role: 'user',
@@ -179,7 +184,7 @@ async function sendFunctionCallResult(callInfo, result) {
   // For other tools, send simple output
   const conversationItem = {
     type: 'conversation.item.create',
-    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    event_id: generateEventId(),
     item: {
       type: 'function_call_output',
       call_id: callInfo.event.call_id,
@@ -195,7 +200,7 @@ async function sendFunctionCallResult(callInfo, result) {
 async function triggerResponseCreation() {
   const responseEvent = {
     type: 'response.create',
-    event_id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    event_id: generateEventId()
   };
   
   dataChannel.send(JSON.stringify(responseEvent));

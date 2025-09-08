@@ -2,6 +2,7 @@ const { desktopCapturer, screen } = require('electron');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
+const { setLastScreenshot } = require('../overlay_context');
 
 async function execute(args) {
   console.log('📸 Starting screenshot capture with PNG color quantization...');
@@ -60,7 +61,9 @@ async function execute(args) {
       }
     }
     
-    const capturedSize = thumbnail.getSize();
+    // Get image dimensions and metadata
+    const imageSize = thumbnail.getSize();
+    const targetDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     
     // Save processed image to screenshots_seen folder
     const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
@@ -69,23 +72,32 @@ async function execute(args) {
     }
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-    const filename = `${timestamp}_${capturedSize.width}x${capturedSize.height}_${bestResult.colors}colors.png`;
+    const filename = `${timestamp}_${imageSize.width}x${imageSize.height}_${bestResult.colors}colors.png`;
     const filePath = path.join(screenshotsDir, filename);
     
     fs.writeFileSync(filePath, bestResult.buffer);
     console.log(`💾 Saved: screenshots_seen/${filename}`);
-    console.log(`✅ PNG: ${capturedSize.width}x${capturedSize.height} (${bestResult.colors} colors, ${bestResult.buffer.length} bytes)`);
+    console.log(`✅ PNG: ${imageSize.width}x${imageSize.height} (${bestResult.colors} colors, ${bestResult.buffer.length} bytes)`);
+    
+    // Record screenshot metadata for overlay coordinate mapping
+    setLastScreenshot({
+      imageW: imageSize.width,
+      imageH: imageSize.height,
+      displayBounds: targetDisplay.bounds,
+      capturedAt: Date.now()
+    });
     
     return {
       success: true,
       image: bestResult.buffer.toString('base64'),
       imageFormat: 'png',
-      width: capturedSize.width,
-      height: capturedSize.height,
+      width: imageSize.width,
+      height: imageSize.height,
       source: 'desktopCapturer',
       paletteColors: bestResult.colors,
       fileSizeBytes: bestResult.buffer.length,
-      quantized: true
+      quantized: true,
+      lastScreenshotMeta: { imageW: imageSize.width, imageH: imageSize.height, displayBounds: targetDisplay.bounds }
     };
     
   } catch (error) {

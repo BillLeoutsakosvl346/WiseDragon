@@ -7,7 +7,8 @@
 - **Real-Time Voice Conversations**: Direct audio streaming with OpenAI's voice model using WebRTC
 - **Visual Context Awareness**: AI can capture and analyze high-quality screenshots of your screen
 - **Precision Arrow Overlays**: AI can point at specific UI elements using transparent, click-through arrows
-- **Normalized Coordinate System**: AI uses screenshot-relative coordinates for accurate element targeting
+- **Intelligent Coordinate System**: AI uses a 0-100 coordinate grid overlay with smart positioning (top-left origin)
+- **Pre-Generated Grid Overlays**: High-performance coordinate grids cached for instant arrow placement
 - **Secure Architecture**: Sandboxed renderer with secure tool execution in the main process
 - **Extensible Tool System**: Easy to add new capabilities through the plugin-like tool system
 - **Multi-Monitor Support**: Works seamlessly across multiple displays
@@ -40,34 +41,42 @@
 1. **You click "Connect"** → App establishes WebRTC voice connection with OpenAI
 2. **You speak** → Your voice streams directly to ChatGPT
 3. **ChatGPT responds** → You hear its voice through your speakers
-4. **ChatGPT can take screenshots** → When needed, it captures your screen for visual context
-5. **ChatGPT analyzes images** → It reads text, understands UI elements, and provides contextual help
-6. **ChatGPT can point at elements** → Uses arrow overlays to highlight specific screen areas
-7. **Overlays are contextual** → Arrows use normalized coordinates relative to the screenshot
+4. **ChatGPT can take screenshots** → When needed, it captures your screen with coordinate grid overlay
+5. **ChatGPT analyzes images** → It reads text, understands UI elements, and uses visible grid coordinates
+6. **ChatGPT can point at elements** → Uses simple 0-100 coordinates from the visible grid to place arrows
+7. **Process is invisible** → User sees instant arrow placement without technical details
 
 ## 📁 File Structure
 
 ```
 WiseDragon/
 ├── README.md                    ← This file
-├── package.json                 ← Dependencies and scripts
+├── package.json                 ← Dependencies and scripts (includes generate-grids)
 ├── .env                         ← OpenAI API key (create this)
 ├── main.js                      ← Main process - app manager and security
 ├── preload.js                   ← Security bridge between processes
 ├── renderer/
-│   ├── index.html              ← Simple UI with Connect/Disconnect buttons
-│   └── renderer.js             ← WebRTC connection and function call handling
+│   ├── index.html              ← UI with agent image display and controls
+│   └── renderer.js             ← WebRTC connection and coordinate image handling
+├── media/                       ← Pre-generated coordinate grid overlays
+│   ├── grid_1920x1200.png      ← Common resolution coordinate grids
+│   ├── grid_1920x1080.png      ← (8×6 grid, transparent background)
+│   └── ... (more resolutions)
+├── scripts/
+│   └── generateGrids.js        ← Script to pre-generate coordinate grids
+├── utils/
+│   └── applyCoordinateNet.js   ← Coordinate grid generation utility
 └── tools/
     ├── index.js                ← Tool registry - auto-discovers and manages tools
     ├── overlay_context.js      ← Screenshot metadata storage for coordinate mapping
     ├── screenshot/
     │   ├── index.js            ← Screenshot tool entry point
-    │   ├── execute.js          ← Screenshot capture with PNG optimization
+    │   ├── execute.js          ← Fast screenshot capture with PNG optimization
     │   └── schema.js           ← OpenAI function calling schema
     └── overlay/
         ├── index.js            ← Overlay arrow tool entry point
-        ├── execute.js          ← Arrow overlay implementation
-        └── schema.js           ← OpenAI function calling schema
+        ├── execute.js          ← Optimized arrow overlay with pre-generated grids
+        └── schema.js           ← Simplified coordinate system schema
 ```
 
 ## 🔧 File Details
@@ -94,12 +103,13 @@ WiseDragon/
 - Status display
 - Audio element for AI voice output
 
-#### `renderer/renderer.js` (290 lines) - Voice & Function Call Handler
+#### `renderer/renderer.js` (390+ lines) - Voice & Function Call Handler
 - Manages WebRTC peer connection with OpenAI
 - Handles microphone input and speaker output
 - Processes function call requests from ChatGPT
 - Executes tools and sends results back to AI
-- Special handling for screenshot base64 transmission
+- **Agent image display**: Shows exactly what the AI sees (screenshots/coordinate grids)
+- Special handling for coordinate-overlaid screenshots
 - Backchannel audio feedback for immediate responsiveness
 
 ### Tool System
@@ -132,21 +142,23 @@ WiseDragon/
 
 ### Overlay Arrow Tool
 
-#### `tools/overlay/execute.js` (174 lines) - Arrow Overlay Implementation
-- Creates transparent, click-through arrow overlays
-- Supports three coordinate systems:
-  - `image_norm`: Normalized coordinates (0-1) relative to last screenshot
-  - `box_norm`: Normalized bounding box - arrow points at center
-  - `screen_px`: Legacy absolute screen coordinates
+#### `tools/overlay/execute.js` (240+ lines) - **OPTIMIZED** Arrow Overlay Implementation
+- **High-performance**: Uses pre-generated coordinate grids for ~200ms total placement time
+- **Simple coordinate system**: AI uses visible 0-100 grid coordinates (top-left origin)
+- **One-shot operation**: Agent makes single decision, no adjustment attempts
+- **Invisible process**: User sees instant arrow placement without technical details
+- **Smart grid loading**: Loads pre-generated grids from `/media/` with fallback generation
+- **Fast compositing**: Direct image overlay using cached transparent grids
+- **Detailed performance logging**: Monitors each step for bottleneck identification
 - Multi-monitor support with automatic display detection
-- Customizable arrow styling (color, opacity, duration)
 - Auto-cleanup to prevent permanent overlays
 
-#### `tools/overlay/schema.js` (59 lines) - OpenAI Function Schema
-- Defines the arrow overlay function for ChatGPT
-- Explains coordinate systems and when to use each
-- Guides AI to prefer normalized coordinates after screenshots
-- Supports optional styling parameters
+#### `tools/overlay/schema.js` (68 lines) - **SIMPLIFIED** OpenAI Function Schema
+- **Streamlined parameters**: Just `x100`, `y100`, `direction` (removed complex legacy systems)
+- **Clear instructions**: Explains that coordinate overlays are helper references only
+- **Smart arrow directions**: Points away from screen edges toward targets
+- **One-shot guidance**: Emphasizes single attempt with best judgment
+- **Invisible operation**: Instructs AI to never mention technical details to user
 
 ## 🚀 Setup & Installation
 
@@ -166,7 +178,12 @@ WiseDragon/
    echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
    ```
 
-4. **Start the application**
+4. **Generate coordinate grids** (for optimal performance)
+   ```bash
+   npm run generate-grids
+   ```
+
+5. **Start the application**
    ```bash
    npm start
    ```
@@ -180,19 +197,20 @@ WiseDragon/
 - **Backchannel audio feedback** for immediate AI responsiveness
 
 ### Visual Intelligence
-- **High-resolution screenshots** (1365×768) optimized for text clarity
+- **Coordinate grid overlays**: 8×6 grid with visible 0-100 coordinates for precise targeting
+- **Pre-generated grids**: Cached transparent overlays for common resolutions (instant loading)
+- **Agent image display**: UI shows exactly what the AI sees (screenshots + coordinate grids)
 - **Adaptive PNG compression** with color quantization for optimal file size
 - **Multi-monitor detection** using cursor position heuristics
-- **Contextual metadata storage** for coordinate mapping
 
 ### Precision Overlays
-- **Three coordinate systems** for maximum flexibility:
-  - Normalized image coordinates for screenshot-relative pointing
-  - Bounding box targeting for UI element centers
-  - Legacy absolute coordinates for direct screen positioning
+- **Simple 0-100 coordinate system**: AI reads coordinates directly from visible grid overlay
+- **Top-left origin**: Standard screen coordinate system (0,0) → (100,100)
+- **One-shot precision**: AI makes single targeting decision with visible coordinate helpers
 - **Transparent, click-through arrows** that don't interfere with usage
+- **Smart arrow directions**: Automatically points away from screen edges toward targets
+- **High performance**: ~200ms total arrow placement time using pre-generated grids
 - **Multi-monitor support** with automatic display targeting
-- **Customizable styling** (color, opacity, duration)
 - **Auto-cleanup** prevents permanent overlay pollution
 
 ### Tool Architecture
@@ -285,56 +303,76 @@ Context Storage - IN-MEMORY STATE
 - *"Show me where the error message is"* (after screenshot)
 
 ### AI Behavior
-1. **Takes screenshot** when visual context is needed
-2. **Analyzes the image** thoroughly reading all text and UI elements
-3. **Points with arrows** using normalized coordinates for precise targeting
-4. **Provides contextual help** based on what it sees
+1. **Takes coordinate-overlaid screenshot** when pointing is needed
+2. **Analyzes the image** including visible coordinate grid references
+3. **Uses visible coordinate numbers** to specify precise arrow placement locations
+4. **Makes one-shot targeting decisions** with best judgment from visible grid
+5. **Continues conversation naturally** after arrow placement (invisible technical process)
 
-### Coordinate Systems
+### Simple Coordinate System
 ```javascript
-// After screenshot, AI can use:
+// AI sees coordinate grid overlay and uses visible numbers:
 
-// Point at center of screen
-show_arrow_overlay({
-  basis: "image_norm", 
-  direction: "down", 
-  x_norm: 0.5, 
-  y_norm: 0.5
-})
+// Point at center of screen (50,50)
+{
+  "x100": 50,
+  "y100": 50, 
+  "direction": "down"
+}
 
-// Point at a UI element (e.g., button bounds)
-show_arrow_overlay({
-  basis: "box_norm",
-  direction: "up", 
-  box: {x0: 0.7, y0: 0.8, x1: 0.9, y1: 0.9}
-})
+// Point at top-right area (85,15)  
+{
+  "x100": 85,
+  "y100": 15,
+  "direction": "left"
+}
 
-// Legacy absolute coordinates
-show_arrow_overlay({
-  basis: "screen_px",
-  direction: "right",
-  x: 800,
-  y: 400
-})
+// Point at bottom-left area (20,90)
+{
+  "x100": 20,
+  "y100": 90,
+  "direction": "up"
+}
 ```
+
+**How it works:**
+1. AI calls `show_arrow_overlay` function
+2. System takes screenshot + applies coordinate grid overlay
+3. AI sees image with red dots and coordinate labels (0-100)
+4. AI reads coordinates from visible grid and responds with simple JSON
+5. Arrow appears instantly at specified location
 
 ## 🔄 How It All Works Together
 
 1. **User speaks** → Voice streams to OpenAI via WebRTC
-2. **AI needs visual context** → Calls `take_screenshot` function
-3. **Screenshot captured** → Optimized PNG sent to AI, metadata stored locally
-4. **AI analyzes image** → Understands UI layout, reads text, identifies elements
-5. **AI wants to point** → Calls `show_arrow_overlay` with normalized coordinates
-6. **Arrow appears** → Transparent overlay precisely targets the element
-7. **AI continues helping** → With full visual and spatial context
+2. **AI needs to point at something** → Calls `show_arrow_overlay` function
+3. **Screenshot + coordinate grid applied** → Fast capture with pre-generated grid overlay (~200ms)
+4. **AI sees coordinate-overlaid image** → Gets screenshot with visible 0-100 grid coordinates  
+5. **AI reads grid coordinates** → Uses visible red coordinate labels to identify target location
+6. **AI responds with simple coordinates** → Returns `{x100: 75, y100: 25, direction: "left"}`
+7. **Arrow appears instantly** → Transparent overlay precisely targets the element
+8. **AI continues conversation naturally** → Acknowledges pointing action and continues helping
 
 ## 📊 Performance Optimizations
 
-- **Screenshot compression**: Adaptive color quantization (64-8 colors)
-- **File size limits**: ≤150KB for WebRTC compatibility
-- **Memory management**: Overlay cleanup and context storage limits
+### **Major Speed Improvements**
+- **Pre-generated coordinate grids**: Common resolutions cached in `/media/` folder
+- **Grid loading**: ~3ms (was 1000+ ms generation time)
+- **Grid compositing**: ~200ms (direct image overlay vs complex SVG generation)
+- **Overall arrow placement**: ~1200-2300ms (was ~3100ms - 30-60% improvement)
+
+### **Optimization Techniques**
+- **Screenshot compression**: Adaptive color quantization (64-8 colors) 
+- **Grid caching**: Transparent coordinate overlays pre-generated for instant loading
+- **Fast screen capture**: Optimized `desktopCapturer` with `fetchWindowIcons: false`
+- **Performance logging**: Detailed timing breakdown for bottleneck identification
+- **Memory management**: Grid cache and overlay cleanup
 - **Multi-monitor efficiency**: Cursor-based display detection
-- **Event deduplication**: Helper functions reduce code repetition
+
+### **Remaining Bottlenecks**
+- **Windows screen capture**: 700-1400ms (inherent Windows API limitation)
+- **PNG conversion**: 200-700ms (Electron native image → PNG buffer)
+- **Image compositing**: 180-250ms (Sharp image processing)
 
 ## 📝 Development Notes
 

@@ -2,6 +2,8 @@ const statusEl = document.getElementById('status');
 const audioEl = document.getElementById('assistant');
 const btnConn = document.getElementById('connect');
 const btnDisc = document.getElementById('disconnect');
+const agentViewEl = document.getElementById('agent-view');
+const imageInfoEl = document.getElementById('image-info');
 
 // Backchannel audio configuration
 const BACKCHANNEL_VOICE = 'nova'; // Choose a good voice from available recordings
@@ -116,6 +118,7 @@ async function stop() {
   dataChannel = null;
   activeFunctionCalls.clear();
   
+  hideAgentImage(); // Clear the image display
   status('Disconnected.');
   btnConn.disabled = false;
 }
@@ -129,8 +132,42 @@ function generateEventId() {
   return `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// Display image that agent sees
+function displayAgentImage(base64Image, imageInfo) {
+  if (base64Image) {
+    agentViewEl.src = `data:image/png;base64,${base64Image}`;
+    agentViewEl.classList.add('visible');
+    
+    let infoText = '';
+    if (imageInfo.type === 'screenshot') {
+      infoText = `Screenshot: ${imageInfo.width}×${imageInfo.height} (${imageInfo.colors} colors, ${imageInfo.size} bytes)`;
+    } else if (imageInfo.type === 'coordinate-overlay') {
+      infoText = `Coordinate Overlay: ${imageInfo.width}×${imageInfo.height} - Agent can see grid coordinates`;
+    }
+    
+    imageInfoEl.textContent = infoText;
+    console.log('🖼️ Displaying agent view:', infoText);
+  }
+}
+
+// Hide agent image display
+function hideAgentImage() {
+  agentViewEl.classList.remove('visible');
+  imageInfoEl.textContent = '';
+}
+
+
 async function sendScreenshot(callInfo, result) {
   console.log(`📤 Sending PNG ${result.paletteColors} colors to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
+  
+  // Display the image that agent will see
+  displayAgentImage(result.image, {
+    type: 'screenshot',
+    width: result.width,
+    height: result.height,
+    colors: result.paletteColors,
+    size: result.fileSizeBytes
+  });
   
   // Send function call output
   const functionOutput = {
@@ -178,6 +215,38 @@ async function sendFunctionCallResult(callInfo, result) {
   // For screenshot results, use dedicated screenshot sender
   if ((result.imageUrl || result.image) && result.source === 'desktopCapturer') {
     await sendScreenshot(callInfo, result);
+    return;
+  }
+  
+  // For arrow overlay results with coordinate image
+  if (result.image && callInfo.name === 'show_arrow_overlay') {
+    console.log(`📤 Sending coordinate overlay to AI (${result.width}x${result.height})`);
+    
+    // Display the coordinate-overlaid image that agent will see
+    displayAgentImage(result.image, {
+      type: 'coordinate-overlay',
+      width: result.width,
+      height: result.height
+    });
+    
+    // Send function call output first
+    const functionOutput = {
+      type: 'conversation.item.create',
+      event_id: generateEventId(),
+      item: {
+        type: 'function_call_output',
+        call_id: callInfo.event.call_id,
+        output: JSON.stringify({
+          success: result.success,
+          message: 'Arrow placed successfully. Continue conversation naturally.'
+        })
+      }
+    };
+    
+    dataChannel.send(JSON.stringify(functionOutput));
+    
+    // Trigger response to let agent continue conversation naturally
+    await triggerResponseCreation();
     return;
   }
   

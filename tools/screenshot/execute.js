@@ -5,21 +5,23 @@ const path = require('path');
 const { setLastScreenshot } = require('../overlay_context');
 
 async function execute(args) {
-  console.log('📸 Starting screenshot capture with PNG color quantization...');
+  console.log('📸 Starting screenshot capture with 1:1 geometry...');
   
   try {
-    // OpenAI vision optimal: 1365×768 (16:9 with short-side 768px)
-    // This matches exactly what OpenAI's server will resize to anyway
-    const thumbnailSize = { width: 1365, height: 768 };
+    // Capture at 1:1 geometry - no spatial rescale, match display DIP size
+    const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const sz = { width: disp.bounds.width, height: disp.bounds.height }; // 1:1 DIPs
     
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: thumbnailSize
+      thumbnailSize: sz
     });
     
-    const thumbnail = sources[0].thumbnail;
+    // Find the source matching our target display, or fall back to first
+    const src = sources.find(s => s.display_id === String(disp.id)) || sources[0];
+    const native = src.thumbnail;
+    const inputBuffer = native.toPNG(); // No spatial resize, only quantize
     const maxRawSize = 150000; // 150KB limit for optimal WebRTC performance
-    const inputBuffer = thumbnail.toPNG(); // Get raw PNG for Sharp processing
     
     console.log('🎨 Starting PNG palette quantization (64 → 32 → 16 → 8 colors)...');
     
@@ -31,11 +33,6 @@ async function execute(args) {
       console.log(`🎨 Trying ${colors} color palette...`);
       
       const buffer = await sharp(inputBuffer)
-        .resize(thumbnailSize.width, thumbnailSize.height, {
-          fit: 'inside',
-          withoutEnlargement: true,
-          kernel: 'lanczos3'
-        })
         .png({
           palette: true,        // Use indexed PNG (color quantization)
           colours: colors,      // Number of colors in palette
@@ -62,8 +59,7 @@ async function execute(args) {
     }
     
     // Get image dimensions and metadata
-    const imageSize = thumbnail.getSize();
-    const targetDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const imageSize = native.getSize();
     
     // Save processed image to screenshots_seen folder
     const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
@@ -79,12 +75,12 @@ async function execute(args) {
     console.log(`💾 Saved: screenshots_seen/${filename}`);
     console.log(`✅ PNG: ${imageSize.width}x${imageSize.height} (${bestResult.colors} colors, ${bestResult.buffer.length} bytes)`);
     
-    // Record screenshot metadata for overlay coordinate mapping
+    // Store minimal meta for mapping (no timers, no guards)
     setLastScreenshot({
+      displayId: disp.id,
+      displayBounds: disp.bounds, // {x,y,width,height} DIPs
       imageW: imageSize.width,
-      imageH: imageSize.height,
-      displayBounds: targetDisplay.bounds,
-      capturedAt: Date.now()
+      imageH: imageSize.height
     });
     
     return {
@@ -97,7 +93,7 @@ async function execute(args) {
       paletteColors: bestResult.colors,
       fileSizeBytes: bestResult.buffer.length,
       quantized: true,
-      lastScreenshotMeta: { imageW: imageSize.width, imageH: imageSize.height, displayBounds: targetDisplay.bounds }
+      lastScreenshotMeta: { imageW: imageSize.width, imageH: imageSize.height, displayBounds: disp.bounds }
     };
     
   } catch (error) {

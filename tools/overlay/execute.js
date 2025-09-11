@@ -1,20 +1,11 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
+const sharp = require('sharp');
 const { getLastScreenshot } = require('../overlay_context');
 
 // Keep track of overlay windows
 let overlays = [];
-
-function centerOf(box) {
-  return { xn: (box.x0 + box.x1) / 2, yn: (box.y0 + box.y1) / 2 };
-}
-
-function normToScreen(xn, yn, displayBounds) {
-  return {
-    x: Math.round(displayBounds.x + xn * displayBounds.width),
-    y: Math.round(displayBounds.y + yn * displayBounds.height)
-  };
-}
 
 function createOverlayHTML(dir, x, y, color = 'black', opacity = 0.95) {
   // Fixed size for consistent, visible arrows
@@ -79,80 +70,201 @@ function cleanupOverlays() {
   overlays = [];
 }
 
-// Validation helper functions
-function validateDirection(direction) {
-  if (!direction || !['up', 'down', 'left', 'right'].includes(direction)) {
-    throw new Error('Invalid direction. Must be: up, down, left, or right');
+// Deterministic, O(1), no extra I/O - this is the only math we need
+function normToScreen(xn, yn, b) {
+  return { x: Math.round(b.x + xn * b.width), y: Math.round(b.y + yn * b.height) };
+}
+
+// Convert 0-100 coordinates to normalized 0-1 coordinates
+function coordsToNorm(x100, y100) {
+  const x_norm = x100 / 100;
+  const y_norm = y100 / 100; // Direct mapping - top-left (0,0) to bottom-right (100,100)
+  return { x_norm, y_norm };
+}
+
+// Cache for pre-generated coordinate grids
+const gridCache = new Map();
+
+// Load pre-generated coordinate grid for a specific resolution
+async function loadCoordinateGrid(width, height) {
+  const key = `${width}x${height}`;
+  
+  if (gridCache.has(key)) {
+    return gridCache.get(key);
+  }
+  
+  try {
+    const gridPath = path.join(__dirname, '..', '..', 'media', `grid_${width}x${height}.png`);
+    const gridBuffer = await fs.readFile(gridPath);
+    gridCache.set(key, gridBuffer);
+    console.log(`📐 Loaded pre-generated grid for ${width}x${height}`);
+    return gridBuffer;
+  } catch (error) {
+    console.log(`⚠️ No pre-generated grid found for ${width}x${height}, will generate on-the-fly`);
+    return null;
   }
 }
 
-function validateBasis(basis) {
-  if (!basis || !['image_norm', 'box_norm', 'screen_px'].includes(basis)) {
-    throw new Error('Invalid basis. Must be: image_norm, box_norm, or screen_px');
-  }
+// Fast screen capture - skip expensive getSources() when possible
+async function fastScreenCapture() {
+  const { desktopCapturer, screen } = require('electron');
+  
+  // Get current display info quickly
+  const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  
+  // Try to get just the primary display source quickly
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: disp.bounds.width, height: disp.bounds.height },
+    fetchWindowIcons: false // Skip window icon fetching for speed
+  });
+  
+  // Find matching display or use first available
+  const src = sources.find(s => s.display_id === String(disp.id)) || sources[0];
+  return {
+    thumbnail: src.thumbnail,
+    displayBounds: disp.bounds,
+    imageSize: src.thumbnail.getSize()
+  };
 }
 
-function getGlobalCoordinates(args) {
-  const { basis } = args;
-  
-  if (basis === 'image_norm') {
-    const meta = getLastScreenshot();
-    if (!meta) throw new Error('No screenshot context available: take a screenshot first.');
-    if (typeof args.x_norm !== 'number' || typeof args.y_norm !== 'number') {
-      throw new Error('image_norm basis requires x_norm and y_norm parameters');
+// Take a fresh screenshot and apply coordinate net overlay for arrow pointing (OPTIMIZED)
+async function takeScreenshotWithCoordinates() {
+  const funcStart = Date.now();
+  try {
+    // Step 1: Fast screen capture
+    const captureStart = Date.now();
+    console.log('📷 Starting fast screen capture...');
+    const { thumbnail, displayBounds, imageSize } = await fastScreenCapture();
+    console.log(`📷 Fast screen capture: ${Date.now() - captureStart}ms`);
+    
+    // Step 2: Convert to PNG buffer
+    const processStart = Date.now();
+    const screenshotBuffer = thumbnail.toPNG();
+    console.log(`🖼️ PNG conversion: ${Date.now() - processStart}ms`);
+    
+    // Step 3: Load or generate coordinate grid
+    const gridStart = Date.now();
+    const { width, height } = imageSize;
+    let gridBuffer = await loadCoordinateGrid(width, height);
+    
+    if (!gridBuffer) {
+      // Fallback: generate grid on-the-fly if not pre-generated
+      console.log('⚠️ Generating coordinate grid on-the-fly...');
+      const { applyCoordinateNet } = require('../../utils/applyCoordinateNet');
+      const coordinateOverlayBuffer = await applyCoordinateNet(screenshotBuffer);
+      console.log(`🎯 On-the-fly grid generation: ${Date.now() - gridStart}ms`);
+      
+      // Save result and return early
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+      const filename = `${timestamp}_${width}x${height}_coordinates.png`;
+      const outputPath = path.join(__dirname, '..', '..', 'screenshots_seen', filename);
+      await fs.writeFile(outputPath, coordinateOverlayBuffer);
+      
+      return {
+        path: outputPath,
+        buffer: coordinateOverlayBuffer,
+        displayBounds: displayBounds,
+        imageW: width,
+        imageH: height
+      };
     }
-    return normToScreen(args.x_norm, args.y_norm, meta.displayBounds);
-  } 
-  
-  if (basis === 'box_norm') {
-    const meta = getLastScreenshot();
-    if (!meta) throw new Error('No screenshot context available: take a screenshot first.');
-    if (!args.box || typeof args.box !== 'object') {
-      throw new Error('box_norm basis requires box parameter with x0, y0, x1, y1');
+    
+    console.log(`📐 Grid loading: ${Date.now() - gridStart}ms`);
+    
+    // Step 4: Fast composite - just overlay the pre-generated grid
+    const compositeStart = Date.now();
+    console.log('⚡ Fast compositing pre-generated grid...');
+    const coordinateOverlayBuffer = await sharp(screenshotBuffer)
+      .composite([{
+        input: gridBuffer,
+        top: 0,
+        left: 0
+      }])
+      .png()
+      .toBuffer();
+    console.log(`⚡ Grid composite: ${Date.now() - compositeStart}ms`);
+    
+    // Step 5: Save file
+    const saveStart = Date.now();
+    const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
+    if (!require('fs').existsSync(screenshotsDir)) {
+      require('fs').mkdirSync(screenshotsDir, { recursive: true });
     }
-    const center = centerOf(args.box);
-    return normToScreen(center.xn, center.yn, meta.displayBounds);
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+    const filename = `${timestamp}_${width}x${height}_coordinates.png`;
+    const outputPath = path.join(screenshotsDir, filename);
+    
+    await fs.writeFile(outputPath, coordinateOverlayBuffer);
+    console.log(`💾 File save: ${Date.now() - saveStart}ms`);
+    
+    const totalFuncTime = Date.now() - funcStart;
+    console.log(`📊 takeScreenshotWithCoordinates() OPTIMIZED total: ${totalFuncTime}ms`);
+    console.log(`📊 Coordinate net screenshot saved: screenshots_seen/${filename}`);
+    
+    return {
+      path: outputPath,
+      buffer: coordinateOverlayBuffer,
+      displayBounds: displayBounds,
+      imageW: width,
+      imageH: height
+    };
+  } catch (error) {
+    console.error('❌ Failed to take screenshot with coordinates:', error);
+    throw error;
   }
-  
-  if (basis === 'screen_px') {
-    if (typeof args.x !== 'number' || typeof args.y !== 'number') {
-      throw new Error('screen_px basis requires x and y parameters');
-    }
-    return { x: args.x, y: args.y };
-  }
-  
-  throw new Error(`Unsupported basis: ${basis}`);
 }
 
 async function execute(args) {
+  const startTime = Date.now();
   console.log('🎯 Showing overlay arrow:', args);
+  console.log(`⏱️ Arrow process started at: ${new Date().toISOString()}`);
   
   try {
-    const { direction, basis, color = 'black', opacity = 0.95, duration_ms = 10000 } = args;
+    const { direction, color = 'black', opacity = 0.95, duration_ms = 8000 } = args;
     
-    // Validate inputs
-    validateDirection(direction);
-    validateBasis(basis);
-
     // Clean up any existing overlays
+    const cleanupStart = Date.now();
     cleanupOverlays();
+    console.log(`🧹 Cleanup completed in: ${Date.now() - cleanupStart}ms`);
 
-    // Get global coordinates based on basis
-    const { x: gx, y: gy } = getGlobalCoordinates(args);
+    // Step 1: Take fresh screenshot and apply coordinate net for agent viewing
+    const screenshotStart = Date.now();
+    console.log('📸 Starting screenshot capture and coordinate overlay...');
+    const coordinateScreenshot = await takeScreenshotWithCoordinates();
+    const screenshotTime = Date.now() - screenshotStart;
+    console.log(`📸 Screenshot + coordinate overlay completed in: ${screenshotTime}ms`);
+    
+    console.log('📊 Screenshot with coordinate net ready for agent viewing');
+    console.log(`📍 Agent should now view: ${coordinateScreenshot.path}`);
 
-    // Find target display and convert to local coordinates
-    const targetDisplay = screen.getDisplayNearestPoint({ x: gx, y: gy });
-    const localX = gx - targetDisplay.bounds.x;
-    const localY = gy - targetDisplay.bounds.y;
+    // Step 2: Convert coordinates to screen pixels
+    const conversionStart = Date.now();
+    const { x100, y100 } = args;
+    const { x_norm, y_norm } = coordsToNorm(x100, y100);
+    
+    console.log(`📍 Converting coordinates: (${x100},${y100}) → normalized (${x_norm.toFixed(3)},${y_norm.toFixed(3)})`);
+    const { x: gx, y: gy } = normToScreen(x_norm, y_norm, coordinateScreenshot.displayBounds);
+    console.log(`🔢 Coordinate conversion completed in: ${Date.now() - conversionStart}ms`);
 
-    console.log(`🎯 Target: ${direction} arrow (${basis}) at global(${gx},${gy}) -> display local(${localX},${localY})`);
+    // Step 3: Pick target display & localize
+    const displayStart = Date.now();
+    const target = screen.getDisplayNearestPoint({ x: gx, y: gy });
+    const localX = gx - target.bounds.x, localY = gy - target.bounds.y;
+    console.log(`🖥️ Display targeting completed in: ${Date.now() - displayStart}ms`);
 
-    // Create overlay on target display with custom styling
+    console.log(`🎯 Target: ${direction} arrow at global(${gx},${gy}) -> display local(${localX},${localY})`);
+
+    // Step 4: Render arrow overlay
+    const arrowStart = Date.now();
+    console.log('🏹 Creating arrow overlay...');
     const htmlContent = createOverlayHTML(direction, localX, localY, color, opacity);
-    const overlay = makeOverlayFor(targetDisplay, htmlContent);
+    const overlay = makeOverlayFor(target, htmlContent);
     overlays.push(overlay);
+    console.log(`🏹 Arrow overlay created and displayed in: ${Date.now() - arrowStart}ms`);
 
-    // Auto-cleanup with custom duration
+    // Auto-cleanup
     setTimeout(() => {
       if (overlay && !overlay.isDestroyed()) {
         overlay.destroy();
@@ -160,23 +272,39 @@ async function execute(args) {
       }
     }, duration_ms);
 
+    const totalTime = Date.now() - startTime;
+    console.log(`⏱️ TOTAL ARROW PROCESS COMPLETED IN: ${totalTime}ms`);
+    console.log(`📊 Process breakdown: Screenshot=${screenshotTime}ms, Arrow=${Date.now() - arrowStart}ms, Total=${totalTime}ms`);
+
     return {
       success: true,
-      message: `Arrow overlay displayed: ${direction} arrow (${basis}) at (${gx}, ${gy})`,
+      message: `Arrow overlay displayed: ${direction} arrow at (${gx}, ${gy})`,
       direction,
-      basis,
       coordinates: { x: gx, y: gy },
-      displayBounds: targetDisplay.bounds,
-      duration_ms
+      displayBounds: target.bounds,
+      coordinateScreenshot: coordinateScreenshot.path,
+      image: coordinateScreenshot.buffer.toString('base64'),
+      imageFormat: 'png',
+      width: coordinateScreenshot.imageW,
+      height: coordinateScreenshot.imageH,
+      duration_ms,
+      performanceStats: {
+        totalTime: totalTime,
+        screenshotTime: screenshotTime,
+        arrowTime: Date.now() - arrowStart
+      }
     };
 
   } catch (error) {
-    console.error('❌ Overlay arrow failed:', error.message);
+    const errorTime = Date.now() - startTime;
+    console.error(`❌ Overlay arrow failed after ${errorTime}ms:`, error.message);
+    console.error(`📍 Error stack:`, error.stack);
     cleanupOverlays();
     
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      failureTime: errorTime
     };
   }
 }

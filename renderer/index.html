@@ -1,10 +1,48 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Realtime Voice (Minimal)</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  #agent-view {
+    max-width: 800px;
+    max-height: 600px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    display: none;
+  }
+  #agent-view.visible {
+    display: block;
+  }
+  .image-info {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+  }
+</style>
 <body>
-  <button id="connect">Connect</button>
-  <button id="disconnect" disabled>Disconnect</button>
-  <p id="status">Idle.</p>
+  <div class="controls">
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <p id="status">Idle.</p>
+  </div>
+  
+  <div>
+    <img id="agent-view" alt="Agent's current view" />
+    <div id="image-info" class="image-info"></div>
+  </div>
+  
   <audio id="assistant" autoplay></audio>
   <script src="renderer.js"></script>
 </body>

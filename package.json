@@ -4,17 +4,22 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "generate-grids": "node scripts/generateGrids.js"
+    "generate-grids": "node scripts/generateGrids.js",
+    "rebuild": "npx @electron/rebuild",
+    "postinstall": "npx @electron/rebuild"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "electron": "^38.0.0"
   },
   "dependencies": {
+    "@jitsi/robotjs": "^0.6.17",
     "dotenv": "^17.2.2",
+    "screenshot-desktop": "^1.15.2",
     "sharp": "^0.34.3"
   }
 }

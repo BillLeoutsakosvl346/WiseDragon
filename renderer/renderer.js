@@ -5,40 +5,7 @@ const btnDisc = document.getElementById('disconnect');
 const agentViewEl = document.getElementById('agent-view');
 const imageInfoEl = document.getElementById('image-info');
 
-// Backchannel audio configuration
-const BACKCHANNEL_VOICE = 'nova'; // Choose a good voice from available recordings
-const TOTAL_PHRASES = 10; // Number of recordings per voice (1.mp3 to 10.mp3)
-
-/**
- * Play random pre-recorded backchannel phrase instantly
- */
-function playBackchannelAudio() {
-  try {
-    // Pick random phrase number (1-10)
-    const phraseNumber = Math.floor(Math.random() * TOTAL_PHRASES) + 1;
-    const audioPath = `../voice_recordings/${BACKCHANNEL_VOICE}/${phraseNumber}.mp3`;
-    
-    console.log(`🎤 Playing backchannel: ${BACKCHANNEL_VOICE}/phrase${phraseNumber}`);
-    
-    // Create audio element and play immediately
-    const audio = new Audio(audioPath);
-    audio.volume = 0.6; // Lower volume to not compete with main AI voice
-    
-    audio.onended = () => {
-      console.log('✅ Backchannel audio completed');
-    };
-    
-    audio.onerror = (error) => {
-      console.error('❌ Backchannel audio failed:', error);
-    };
-    
-    // Play immediately - no API delay!
-    audio.play().catch(err => console.error('Playback failed:', err));
-    
-  } catch (error) {
-    console.error('❌ Backchannel error:', error.message);
-  }
-}
+// Backchannel audio removed - no automatic sounds on screenshot capture
 
 let pc; // RTCPeerConnection
 let localStream; // Your microphone stream
@@ -158,9 +125,16 @@ function hideAgentImage() {
 
 
 async function sendScreenshot(callInfo, result) {
-  console.log(`📤 Sending PNG ${result.paletteColors} colors to AI (${result.width}x${result.height}, ${result.fileSizeBytes} bytes)`);
+  const sendStart = Date.now();
+  const fromFunctionStart = sendStart - callInfo.startTime;
   
-  // Display the image that agent will see
+  console.log(`\n📡 SENDING SCREENSHOT TO MODEL`);
+  console.log(`==============================`);
+  console.log(`📊 Image: ${result.width}×${result.height}, ${(result.fileSizeBytes/1000).toFixed(0)}KB (${result.source})`);
+  console.log(`⏱️ Time from AI request to ready: ${fromFunctionStart}ms`);
+  console.log(`📤 Base64 size: ${(result.image.length * 0.75 / 1024).toFixed(0)}KB`);
+  
+  // Display what agent sees
   displayAgentImage(result.image, {
     type: 'screenshot',
     width: result.width,
@@ -169,8 +143,9 @@ async function sendScreenshot(callInfo, result) {
     size: result.fileSizeBytes
   });
   
-  // Send function call output
-  const functionOutput = {
+  // Send function output
+  const outputStart = Date.now();
+  dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),
     item: {
@@ -178,16 +153,18 @@ async function sendScreenshot(callInfo, result) {
       call_id: callInfo.event.call_id,
       output: JSON.stringify({
         success: true,
-        message: `Screenshot captured: ${result.width}x${result.height}`
+        message: `Screenshot captured: ${result.width}×${result.height}`
       })
     }
-  };
+  }));
   
-  dataChannel.send(JSON.stringify(functionOutput));
   await new Promise(resolve => setTimeout(resolve, 50));
+  const outputTime = Date.now() - outputStart;
   
-  // Send image
-  const imageMessage = {
+  // Send image to model
+  const imageStart = Date.now();
+  console.log(`🤖 Transmitting image to AI model via WebRTC...`);
+  dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),
     item: {
@@ -196,7 +173,7 @@ async function sendScreenshot(callInfo, result) {
       content: [
         {
           type: 'input_text',
-          text: `Screenshot of my screen (${result.width}x${result.height}). Please analyze this image.`
+          text: `Screenshot of my screen (${result.width}×${result.height}). Please analyze this image.`
         },
         {
           type: 'input_image',
@@ -205,32 +182,46 @@ async function sendScreenshot(callInfo, result) {
         }
       ]
     }
-  };
+  }));
+  const imageTime = Date.now() - imageStart;
   
-  dataChannel.send(JSON.stringify(imageMessage));
+  // Trigger AI response
+  console.log(`🚀 Triggering AI response processing...`);
   await triggerResponseCreation();
+  
+  const totalSendTime = Date.now() - sendStart;
+  console.log(`📡 TRANSMISSION COMPLETE: ${totalSendTime}ms`);
+  console.log(`📊 Breakdown: Function output=${outputTime}ms, Image send=${imageTime}ms`);
+  console.log(`🧠 AI model now has the screenshot and is processing...`);
+  
+  // Store timing for tracking model response
+  callInfo.imageSentAt = Date.now();
 }
 
 async function sendFunctionCallResult(callInfo, result) {
-  // For screenshot results, use dedicated screenshot sender
-  if ((result.imageUrl || result.image) && result.source === 'desktopCapturer') {
+  // Route screenshot results
+  if ((result.imageUrl || result.image) && (result.source === 'desktopCapturer' || result.source === 'robotjs' || result.source === 'screenshot-desktop')) {
     await sendScreenshot(callInfo, result);
     return;
   }
   
-  // For arrow overlay results with coordinate image
+  // For coordinate overlay results
   if (result.image && callInfo.name === 'show_arrow_overlay') {
-    console.log(`📤 Sending coordinate overlay to AI (${result.width}x${result.height})`);
+    const overlayStart = Date.now();
+    const fromFunctionStart = overlayStart - callInfo.startTime;
     
-    // Display the coordinate-overlaid image that agent will see
+    console.log(`\n🎯 SENDING COORDINATE OVERLAY TO MODEL`);
+    console.log(`=====================================`);
+    console.log(`📊 Overlay: ${result.width}×${result.height} with 8×6 grid`);
+    console.log(`⏱️ Time from AI request to ready: ${fromFunctionStart}ms`);
+    
     displayAgentImage(result.image, {
       type: 'coordinate-overlay',
       width: result.width,
       height: result.height
     });
     
-    // Send function call output first
-    const functionOutput = {
+    dataChannel.send(JSON.stringify({
       type: 'conversation.item.create',
       event_id: generateEventId(),
       item: {
@@ -241,17 +232,21 @@ async function sendFunctionCallResult(callInfo, result) {
           message: 'Arrow placed successfully. Continue conversation naturally.'
         })
       }
-    };
+    }));
     
-    dataChannel.send(JSON.stringify(functionOutput));
-    
-    // Trigger response to let agent continue conversation naturally
     await triggerResponseCreation();
+    
+    const transmissionTime = Date.now() - overlayStart;
+    console.log(`📡 Coordinate overlay transmission: ${transmissionTime}ms`);
+    console.log(`🤖 AI model now has coordinate overlay and should respond with arrow placement...`);
+    
+    // Store timing for tracking model response
+    callInfo.imageSentAt = Date.now();
     return;
   }
   
-  // For other tools, send simple output
-  const conversationItem = {
+  // For other tools
+  dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),
     item: {
@@ -259,9 +254,8 @@ async function sendFunctionCallResult(callInfo, result) {
       call_id: callInfo.event.call_id,
       output: JSON.stringify(result)
     }
-  };
+  }));
   
-  dataChannel.send(JSON.stringify(conversationItem));
   await triggerResponseCreation();
 }
 
@@ -277,13 +271,34 @@ async function triggerResponseCreation() {
 }
 
 async function executeTool(functionName, args, callInfo) {
+  const executionStart = Date.now();
+  
   const result = await window.oai.executeTool(functionName, args);
+  
+  const executionTime = Date.now() - executionStart;
+  const totalFunctionTime = Date.now() - callInfo.startTime;
   
   callInfo.result = result;
   callInfo.executed = true;
+  callInfo.executionTime = executionTime;
+  callInfo.executedAt = Date.now();
+  
+  console.log(`✅ ${functionName} execution completed in ${executionTime}ms`);
+  console.log(`⏱️ Total function time: ${totalFunctionTime}ms (from AI initiation to completion)`);
   
   status(result.success ? `${functionName} completed` : `${functionName} failed`);
+  
+  // Log start of model transmission
+  console.log(`📤 Starting transmission to AI model...`);
+  const transmissionStart = Date.now();
+  callInfo.transmissionStarted = transmissionStart;
+  
   await sendFunctionCallResult(callInfo, result);
+  
+  const transmissionTime = Date.now() - transmissionStart;
+  callInfo.transmissionTime = transmissionTime;
+  console.log(`📡 Transmission to model completed in ${transmissionTime}ms`);
+  console.log(`🤖 AI model is now processing the ${functionName} result...`);
 }
 
 function setupDataChannelHandlers() {
@@ -306,11 +321,67 @@ function handleRealtimeEvent(event) {
   else if (event.type === 'response.function_call_arguments.done') {
     handleFunctionCallDone(event);
   }
+  else if (event.type === 'response.created') {
+    const responseStart = Date.now();
+    console.log(`🧠 AI RESPONSE STARTED at ${new Date().toISOString()}`);
+    console.log(`🤖 Model is processing and will respond...`);
+    
+    // Store response start time for tracking
+    if (!window.responseTimings) window.responseTimings = new Map();
+    window.responseTimings.set(event.response.id, { startTime: responseStart });
+  }
+  else if (event.type === 'response.audio_transcript.delta') {
+    // Model is speaking - log first word timing
+    if (event.delta && !window.firstWordLogged) {
+      console.log(`🗣️ AI STARTED SPEAKING: "${event.delta.trim()}" at ${new Date().toISOString()}`);
+      
+      // Calculate time from any active function calls
+      for (const [callId, callInfo] of activeFunctionCalls.entries()) {
+        if (callInfo.transmissionStarted) {
+          const speakingTime = Date.now() - callInfo.transmissionStarted;
+          console.log(`📊 Time from transmission to speaking: ${speakingTime}ms`);
+          break;
+        }
+      }
+      window.firstWordLogged = true;
+    }
+  }
   else if (event.type === 'response.done') {
-    clearFunctionCallsForResponse(event.response.id);
+    const responseId = event.response.id;
+    const responseEndTime = Date.now();
+    
+    // Calculate total response time
+    if (window.responseTimings && window.responseTimings.has(responseId)) {
+      const timing = window.responseTimings.get(responseId);
+      const totalResponseTime = responseEndTime - timing.startTime;
+      console.log(`🏁 AI RESPONSE COMPLETED in ${totalResponseTime}ms`);
+      window.responseTimings.delete(responseId);
+    }
+    
+    // Show complete timeline for screenshot functions
+    for (const [callId, callInfo] of activeFunctionCalls.entries()) {
+      if ((callInfo.name === 'take_screenshot' || callInfo.name === 'show_arrow_overlay') && callInfo.imageSentAt) {
+        const fullPipelineTime = responseEndTime - callInfo.startTime;
+        const modelProcessingTime = responseEndTime - callInfo.imageSentAt;
+        
+        console.log(`\n📊 COMPLETE ${callInfo.name.toUpperCase()} TIMELINE`);
+        console.log(`===============================================`);
+        console.log(`⏱️ AI request → Function complete: ${callInfo.executionTime}ms`);
+        console.log(`📡 Function complete → Image sent: ${callInfo.transmissionTime}ms`);
+        console.log(`🧠 Image sent → AI response: ${modelProcessingTime}ms`);
+        console.log(`🎯 TOTAL PIPELINE: ${fullPipelineTime}ms`);
+        console.log(`📋 Function: ${callInfo.name} (${callInfo.result?.source || 'unknown'})`);
+        break;
+      }
+    }
+    
+    // Reset speaking flag for next response
+    window.firstWordLogged = false;
+    
+    clearFunctionCallsForResponse(responseId);
   }
   else if (event.type.startsWith('error')) {
-    console.error('Error event:', event.type, event.error);
+    console.error('❌ Error event:', event.type, event.error);
   }
 }
 
@@ -320,22 +391,26 @@ function handleFunctionCallStarted(event) {
   const callId = item.call_id;
   const functionName = item.name;
   
-  console.log('🤖 AI calling:', functionName);
+  const startTime = Date.now();
+  console.log(`\n🤖 AI INITIATED: ${functionName} at ${new Date().toISOString()}`);
+  console.log(`⏱️ Function call started (ID: ${callId})`);
   
   const callInfo = {
     name: functionName,
     itemId: item.id,
     responseId: event.response_id,
-    startTime: Date.now()
+    startTime,
+    initiatedAt: new Date().toISOString()
   };
   
   activeFunctionCalls.set(callId, callInfo);
   
   if (functionName === 'take_screenshot') {
-    // Play backchannel at the EARLIEST possible moment
-    playBackchannelAudio(); // Instant response when AI decides to screenshot
-    
+    console.log('📸 SCREENSHOT PIPELINE STARTING...');
     status('Taking screenshot...');
+  } else if (functionName === 'show_arrow_overlay') {
+    console.log('🎯 ARROW OVERLAY PIPELINE STARTING...');
+    status('Placing arrow...');
   } else {
     status(`Calling ${functionName}...`);
   }
@@ -354,9 +429,16 @@ function handleFunctionCallDone(event) {
   if (!callInfo) return;
   
   const args = JSON.parse(event.arguments || '{}');
+  const completedTime = Date.now();
+  const argumentsTime = completedTime - callInfo.startTime;
+  
   callInfo.arguments = args;
   callInfo.completed = true;
   callInfo.event = event;
+  callInfo.argumentsCompletedAt = completedTime;
+  
+  console.log(`⚙️ Function arguments processed in ${argumentsTime}ms`);
+  console.log(`🔧 Executing ${callInfo.name} with parsed arguments...`);
   
   status(`Executing ${callInfo.name}...`);
   executeTool(callInfo.name, args, callInfo);

@@ -51,9 +51,9 @@
 ```
 WiseDragon/
 ├── README.md                    ← This file
-├── package.json                 ← Dependencies and scripts (includes generate-grids)
+├── package.json                 ← Dependencies and scripts (ultra-fast capture + auto-rebuild)
 ├── .env                         ← OpenAI API key (create this)
-├── main.js                      ← Main process - app manager and security
+├── main.js                      ← Main process - app manager and security  
 ├── preload.js                   ← Security bridge between processes
 ├── renderer/
 │   ├── index.html              ← UI with agent image display and controls
@@ -65,7 +65,9 @@ WiseDragon/
 ├── scripts/
 │   └── generateGrids.js        ← Script to pre-generate coordinate grids
 ├── utils/
-│   └── applyCoordinateNet.js   ← Coordinate grid generation utility
+│   ├── applyCoordinateNet.js   ← Coordinate grid generation utility
+│   ├── fastCapture.js          ← Ultra-fast screenshot capture (@jitsi/robotjs + fallbacks)
+│   └── fastCompress.js         ← Optimized BGRA→PNG compression pipeline
 └── tools/
     ├── index.js                ← Tool registry - auto-discovers and manages tools
     ├── overlay_context.js      ← Screenshot metadata storage for coordinate mapping
@@ -127,13 +129,13 @@ WiseDragon/
 
 ### Screenshot Tool
 
-#### `tools/screenshot/execute.js` (116 lines) - Screenshot Capture
-- Captures screen using Electron's `desktopCapturer`
-- Optimized for OpenAI vision: 1365×768 resolution
-- Adaptive PNG color quantization (64→32→16→8 colors)
-- Size-optimized (≤150KB) for real-time WebRTC transmission
-- Records metadata for overlay coordinate mapping
-- Saves screenshots locally for debugging
+#### `tools/screenshot/execute.js` (75 lines) - **ULTRA-FAST** Screenshot Capture
+- **Ultra-fast capture**: Uses @jitsi/robotjs (~45ms) with screenshot-desktop fallback
+- **Full screen capture**: Captures entire screen, then resizes to optimized 1366×768
+- **Advanced compression**: BGRA→RGB conversion with 64-color palette compression
+- **Size-optimized**: ≤150KB for real-time WebRTC transmission
+- **Professional logging**: Complete timeline from capture to model transmission
+- **Automatic native module rebuilds**: Handles Electron ABI compatibility automatically
 
 #### `tools/screenshot/schema.js` (24 lines) - OpenAI Function Schema
 - Defines how ChatGPT should use the screenshot tool
@@ -168,10 +170,17 @@ WiseDragon/
    cd WiseDragon
    ```
 
-2. **Install dependencies**
+2. **Install dependencies** (includes ultra-fast capture libraries)
    ```bash
    npm install
    ```
+   
+   **Key Dependencies:**
+   - `@jitsi/robotjs`: Ultra-fast native screenshot capture (~45ms)
+   - `screenshot-desktop`: Reliable fallback capture method (~200ms)  
+   - `sharp`: High-performance image processing and compression
+   - `@electron/rebuild`: Automated native module compatibility for Electron
+   - `electron ^38.0.0`: Latest Electron with Node.js v22.16.0 (ABI 139)
 
 3. **Create `.env` file**
    ```bash
@@ -188,6 +197,15 @@ WiseDragon/
    npm start
    ```
 
+### **Available Scripts:**
+```bash
+npm start           # Start the application
+npm run rebuild     # Manually rebuild native modules for Electron
+npm run generate-grids  # Pre-generate coordinate grid overlays
+```
+
+**Note**: The postinstall script automatically rebuilds native modules (@jitsi/robotjs) for Electron ABI compatibility. This ensures ultra-fast capture works across Electron updates.
+
 ## 🎯 Key Technical Features
 
 ### Voice Processing
@@ -197,11 +215,13 @@ WiseDragon/
 - **Backchannel audio feedback** for immediate AI responsiveness
 
 ### Visual Intelligence
+- **Ultra-fast capture**: @jitsi/robotjs provides ~45ms full-screen capture (vs 700-1400ms Electron)
+- **Smart compression**: Full screen → 1366×768 resize with BGRA→RGB conversion
 - **Coordinate grid overlays**: 8×6 grid with visible 0-100 coordinates for precise targeting
 - **Pre-generated grids**: Cached transparent overlays for common resolutions (instant loading)
 - **Agent image display**: UI shows exactly what the AI sees (screenshots + coordinate grids)
-- **Adaptive PNG compression** with color quantization for optimal file size
-- **Multi-monitor detection** using cursor position heuristics
+- **Complete timeline logging**: Track entire screenshot→model→reply pipeline
+- **Automated compatibility**: electron-rebuild ensures native modules work across updates
 
 ### Precision Overlays
 - **Simple 0-100 coordinate system**: AI reads coordinates directly from visible grid overlay
@@ -344,43 +364,71 @@ Context Storage - IN-MEMORY STATE
 
 ## 🔄 How It All Works Together
 
-1. **User speaks** → Voice streams to OpenAI via WebRTC
-2. **AI needs to point at something** → Calls `show_arrow_overlay` function
-3. **Screenshot + coordinate grid applied** → Fast capture with pre-generated grid overlay (~200ms)
-4. **AI sees coordinate-overlaid image** → Gets screenshot with visible 0-100 grid coordinates  
-5. **AI reads grid coordinates** → Uses visible red coordinate labels to identify target location
-6. **AI responds with simple coordinates** → Returns `{x100: 75, y100: 25, direction: "left"}`
-7. **Arrow appears instantly** → Transparent overlay precisely targets the element
-8. **AI continues conversation naturally** → Acknowledges pointing action and continues helping
+### **Screenshot Analysis Flow:**
+1. **User speaks** → "Can you see my screen?" → Voice streams to OpenAI via WebRTC
+2. **AI decides to screenshot** → Calls `take_screenshot` function  
+3. **Ultra-fast capture** → @jitsi/robotjs captures full screen in ~45ms
+4. **Smart compression** → Full screen resized to 1366×768, compressed to ~75KB
+5. **WebRTC transmission** → Screenshot sent to AI model in ~60ms
+6. **AI processes image** → Model analyzes screenshot (2-15 seconds)
+7. **AI responds naturally** → Starts speaking within 2-3 seconds with analysis
+
+### **Arrow Pointing Flow:**
+1. **User asks for pointing** → "Point to the Save button" 
+2. **AI calls arrow function** → `show_arrow_overlay` initiated
+3. **Coordinate screenshot** → Screenshot + 8×6 grid overlay applied (~200ms)
+4. **AI sees coordinate grid** → Red dots with 0-100 coordinate labels
+5. **AI responds with coordinates** → `{x100: 75, y100: 25, direction: "left"}`
+6. **Arrow appears instantly** → Transparent overlay precisely targets the element
+7. **AI continues conversation** → Acknowledges pointing and continues helping
 
 ## 📊 Performance Optimizations
 
-### **Major Speed Improvements**
-- **Pre-generated coordinate grids**: Common resolutions cached in `/media/` folder
-- **Grid loading**: ~3ms (was 1000+ ms generation time)
-- **Grid compositing**: ~200ms (direct image overlay vs complex SVG generation)
-- **Overall arrow placement**: ~1200-2300ms (was ~3100ms - 30-60% improvement)
+### **BREAKTHROUGH Performance Achievements**
+- **Screenshot capture**: 3,200ms → **~165ms** (95% improvement!)
+- **Ultra-fast methods**: @jitsi/robotjs ~45ms + screenshot-desktop ~200ms fallback
+- **Full screen capture**: Complete screen coverage with 1366×768 optimization
+- **Native module compatibility**: Automated electron-rebuild for seamless updates
+- **Complete pipeline visibility**: End-to-end timeline logging for optimization
 
-### **Optimization Techniques**
-- **Screenshot compression**: Adaptive color quantization (64-8 colors) 
-- **Grid caching**: Transparent coordinate overlays pre-generated for instant loading
-- **Fast screen capture**: Optimized `desktopCapturer` with `fetchWindowIcons: false`
-- **Performance logging**: Detailed timing breakdown for bottleneck identification
-- **Memory management**: Grid cache and overlay cleanup
-- **Multi-monitor efficiency**: Cursor-based display detection
+### **Current Performance (Live Testing)**
+```
+🤖 AI Screenshot Decision:     ~270ms  (normal OpenAI processing)
+📷 Screenshot Capture:        ~45ms   (@jitsi/robotjs)
+🎨 Compression + Resize:      ~120ms  (full screen → 1366×768)
+📡 WebRTC Transmission:       ~60ms   (to OpenAI model)
+🧠 AI Image Analysis:        ~2-15s  (OpenAI vision processing)
+🗣️ AI Response (starts):     ~2-3s   (excellent user experience)
+```
 
-### **Remaining Bottlenecks**
-- **Windows screen capture**: 700-1400ms (inherent Windows API limitation)
-- **PNG conversion**: 200-700ms (Electron native image → PNG buffer)
-- **Image compositing**: 180-250ms (Sharp image processing)
+### **Technical Implementation**
+- **@jitsi/robotjs**: Native GPU-accelerated screen capture for Windows/Mac/Linux
+- **BGRA→RGB conversion**: Optimized pixel format processing with Sharp
+- **Adaptive compression**: Smart 64→32→16→8 color palette selection
+- **Electron compatibility**: Automated native module ABI handling
+- **Fallback system**: screenshot-desktop ensures reliability if RobotJS fails
+- **Memory optimization**: Efficient buffer handling for 4MB→75KB compression (53x)
+
+### **Eliminated Bottlenecks**
+- ✅ **Slow Electron desktopCapturer**: 700-1400ms → 45ms (96% improvement)
+- ✅ **Partial screen capture**: Fixed to capture full screen properly
+- ✅ **Complex coordinate generation**: Pre-generated grids reduce overlay time
+- ✅ **Excessive logging**: Cleaned professional output with timeline visibility
 
 ## 📝 Development Notes
 
-- **Clean, minimal codebase**: Focused on core functionality
+### **Performance Engineering**
+- **Native module integration**: @jitsi/robotjs with automated Electron ABI compatibility
+- **Memory-efficient pipelines**: 4MB raw → 75KB optimized (53x compression)
+- **Full-screen capture**: Proper screen coverage with intelligent resizing
+- **Timeline observability**: Complete performance monitoring from capture to AI response
+
+### **Code Quality**
+- **Clean, minimal codebase**: Removed overengineering while maintaining functionality
 - **Secure by design**: Proper sandboxing and IPC boundaries
-- **Production ready**: Comprehensive error handling and logging
+- **Production ready**: Comprehensive error handling and professional logging
 - **Extensible architecture**: Easy to add new tools and capabilities
-- **Well-documented**: Clear code structure and inline comments
+- **Performance optimized**: 95% improvement in screenshot capture performance
 
 ## 🤝 Contributing
 

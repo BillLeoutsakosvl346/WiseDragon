@@ -2,8 +2,8 @@ const { screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { setLastScreenshot } = require('../overlay_context');
-const { quickCapture, getAvailableMethods } = require('../../utils/fastCapture');
-const { adaptiveCompress } = require('../../utils/fastCompress');
+const { quickCapture, getAvailableMethods } = require('./fastCapture');
+const { adaptiveCompress } = require('./fastCompress');
 
 async function execute(args) {
   const start = performance.now();

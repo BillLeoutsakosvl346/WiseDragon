@@ -25,7 +25,6 @@ function createWindow() {
 
 ipcMain.handle('oai:getEphemeral', async () => {
   const toolSchemas = toolRegistry.getToolSchemas();
-  console.log(`🔑 Getting OpenAI session key (${toolSchemas.length} tools available)`);
   
   const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
@@ -56,7 +55,7 @@ ipcMain.handle('tool:execute', async (event, { name, args }) => {
   try {
     return await toolRegistry.executeTool(name, args);
   } catch (error) {
-    console.error('❌ Tool execution failed:', error.message);
+    console.error('Tool execution failed:', error.message);
     return {
       success: false,
       error: error.message

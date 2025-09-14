@@ -1,10 +1,9 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
-const sharp = require('sharp');
 const { getLastScreenshot } = require('../overlay_context');
-const { quickCapture } = require('../../utils/fastCapture');
-const { adaptiveCompress } = require('../../utils/fastCompress');
+const { quickCapture } = require('../screenshot/fastCapture');
+const { adaptiveCompress } = require('../screenshot/fastCompress');
 
 // Keep track of overlay windows
 let overlays = [];
@@ -84,146 +83,64 @@ function coordsToNorm(x100, y100) {
   return { x_norm, y_norm };
 }
 
-// Cache for pre-generated coordinate grids
-const gridCache = new Map();
+// Removed coordinate grid functionality - now using plain screenshots
 
-// Load pre-generated coordinate grid for a specific resolution
-async function loadCoordinateGrid(width, height) {
-  const key = `${width}x${height}`;
+async function takePlainScreenshot() {
+  const frameData = await quickCapture();
+  const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  let { width, height } = frameData;
   
-  if (gridCache.has(key)) {
-    return gridCache.get(key);
+  if (!width || !height) {
+    width = 1366;
+    height = 768;
   }
   
-  try {
-    const gridPath = path.join(__dirname, '..', '..', 'media', `grid_${width}x${height}.png`);
-    const gridBuffer = await fs.readFile(gridPath);
-    gridCache.set(key, gridBuffer);
-    console.log(`📐 Loaded pre-generated grid for ${width}x${height}`);
-    return gridBuffer;
-  } catch (error) {
-    console.log(`⚠️ No pre-generated grid found for ${width}x${height}, will generate on-the-fly`);
-    return null;
+  let screenshotBuffer;
+  if (frameData.format === 'BGRA') {
+    const compressed = await adaptiveCompress(frameData, 500);
+    screenshotBuffer = compressed.buffer;
+  } else {
+    screenshotBuffer = frameData.buffer;
   }
-}
-
-// REMOVED: fastScreenCapture - replaced with ultra-fast methods from research
-
-// Take a fresh screenshot and apply coordinate net overlay for arrow pointing (ULTRA-FAST)
-async function takeScreenshotWithCoordinates() {
-  const funcStart = Date.now();
-  try {
-    // Step 1: Fast screen capture
-    const captureStart = Date.now();
-    const frameData = await quickCapture();
-    
-    // Step 2: Get display info and handle different formats
-    const processStart = Date.now();
-    const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    let { width, height } = frameData;
-    
-    // Use optimized resolution
-    if (!width || !height) {
-      width = 1366;
-      height = 768;
-    }
-    
-    // Convert to PNG if needed
-    let screenshotBuffer;
-    if (frameData.format === 'BGRA') {
-      const compressed = await adaptiveCompress(frameData, 500);
-      screenshotBuffer = compressed.buffer;
-    } else {
-      screenshotBuffer = frameData.buffer;
-    }
-    
-    // Step 3: Load or generate coordinate grid
-    const gridStart = Date.now();
-    let gridBuffer = await loadCoordinateGrid(width, height);
-    
-    if (!gridBuffer) {
-      // Fallback: generate grid on-the-fly if not pre-generated
-      console.log('⚠️ Generating coordinate grid on-the-fly...');
-      const { applyCoordinateNet } = require('../../utils/applyCoordinateNet');
-      const coordinateOverlayBuffer = await applyCoordinateNet(screenshotBuffer);
-      
-      // Save result and return early
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-      const filename = `${timestamp}_${width}x${height}_coordinates.png`;
-      const outputPath = path.join(__dirname, '..', '..', 'screenshots_seen', filename);
-      await fs.writeFile(outputPath, coordinateOverlayBuffer);
-      
-      return {
-        path: outputPath,
-        buffer: coordinateOverlayBuffer,
-        displayBounds: displayBounds,
-        imageW: width,
-        imageH: height
-      };
-    }
-    
-    
-    // Composite grid overlay
-    const coordinateOverlayBuffer = await sharp(screenshotBuffer)
-      .composite([{ input: gridBuffer, top: 0, left: 0 }])
-      .png()
-      .toBuffer();
-    
-    // Save result
-    const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
-    if (!require('fs').existsSync(screenshotsDir)) {
-      require('fs').mkdirSync(screenshotsDir, { recursive: true });
-    }
-    
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-    const filename = `${timestamp}_${width}x${height}_coordinates.png`;
-    const outputPath = path.join(screenshotsDir, filename);
-    await fs.writeFile(outputPath, coordinateOverlayBuffer);
-    
-    return {
-      path: outputPath,
-      buffer: coordinateOverlayBuffer,
-      displayBounds: disp.bounds,
-      imageW: width,
-      imageH: height
-    };
-  } catch (error) {
-    console.error('❌ Failed to take screenshot with coordinates:', error);
-    throw error;
+  
+  const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
+  if (!require('fs').existsSync(screenshotsDir)) {
+    require('fs').mkdirSync(screenshotsDir, { recursive: true });
   }
+  
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+  const filename = `${timestamp}_${width}x${height}_plain.png`;
+  const outputPath = path.join(screenshotsDir, filename);
+  await fs.writeFile(outputPath, screenshotBuffer);
+  
+  return {
+    path: outputPath,
+    buffer: screenshotBuffer,
+    displayBounds: disp.bounds,
+    imageW: width,
+    imageH: height
+  };
 }
 
 async function execute(args) {
-  const startTime = Date.now();
-  console.log('🎯 Showing overlay arrow:', args);
-  
   try {
     const { direction, color = 'black', opacity = 0.95, duration_ms = 8000 } = args;
     
     cleanupOverlays();
 
-    // Take screenshot with coordinate overlay
-    const coordinateScreenshot = await takeScreenshotWithCoordinates();
-    const screenshotTime = Date.now() - startTime;
-    
-    console.log(`📊 Coordinate overlay ready: ${coordinateScreenshot.imageW}×${coordinateScreenshot.imageH}`);
+    const plainScreenshot = await takePlainScreenshot();
 
-    // Convert coordinates and place arrow
     const { x100, y100 } = args;
     const { x_norm, y_norm } = coordsToNorm(x100, y100);
-    const { x: gx, y: gy } = normToScreen(x_norm, y_norm, coordinateScreenshot.displayBounds);
+    const { x: gx, y: gy } = normToScreen(x_norm, y_norm, plainScreenshot.displayBounds);
 
     const target = screen.getDisplayNearestPoint({ x: gx, y: gy });
     const localX = gx - target.bounds.x, localY = gy - target.bounds.y;
 
-    console.log(`🎯 Arrow: ${direction} at (${x100},${y100}) → screen (${gx},${gy})`);
-
-    // Create and display arrow
     const htmlContent = createOverlayHTML(direction, localX, localY, color, opacity);
     const overlay = makeOverlayFor(target, htmlContent);
     overlays.push(overlay);
 
-    // Auto-cleanup
     setTimeout(() => {
       if (overlay && !overlay.isDestroyed()) {
         overlay.destroy();
@@ -231,12 +148,7 @@ async function execute(args) {
       }
     }, duration_ms);
 
-    const totalTime = Date.now() - startTime;
-    console.log(`⏱️ Arrow placed in ${totalTime}ms (screenshot: ${screenshotTime}ms)`);
-
-    // Prepare image for model transmission
-    const base64Image = coordinateScreenshot.buffer.toString('base64');
-    console.log(`📤 Coordinate overlay ready for AI model: ${coordinateScreenshot.imageW}×${coordinateScreenshot.imageH}`);
+    const base64Image = plainScreenshot.buffer.toString('base64');
     
     return {
       success: true,
@@ -244,30 +156,21 @@ async function execute(args) {
       direction,
       coordinates: { x: gx, y: gy },
       displayBounds: target.bounds,
-      coordinateScreenshot: coordinateScreenshot.path,
+      screenshotPath: plainScreenshot.path,
       image: base64Image,
       imageFormat: 'png',
-      width: coordinateScreenshot.imageW,
-      height: coordinateScreenshot.imageH,
-      duration_ms,
-      performanceStats: {
-        totalTime: totalTime,
-        screenshotTime: screenshotTime,
-        arrowTime: Date.now() - arrowStart,
-        base64Time: base64Time
-      }
+      width: plainScreenshot.imageW,
+      height: plainScreenshot.imageH,
+      duration_ms
     };
 
   } catch (error) {
-    const errorTime = Date.now() - startTime;
-    console.error(`❌ Overlay arrow failed after ${errorTime}ms:`, error.message);
-    console.error(`📍 Error stack:`, error.stack);
+    console.error('Overlay arrow failed:', error.message);
     cleanupOverlays();
     
     return {
       success: false,
-      error: error.message,
-      failureTime: errorTime
+      error: error.message
     };
   }
 }

@@ -13,16 +13,16 @@ This system has two separate screenshot-related functions that serve different p
   - Used when agent needs to see and describe what's on screen
   - No coordinate grid applied
 
-### 2. `show_arrow_overlay` (Coordinate-Based Pointing)
-- **Purpose**: Point at specific UI elements using a coordinate system
-- **Location**: `tools/overlay/`
+### 2. `show_arrow_overlay` (AI-Powered Element Detection)
+- **Purpose**: Point at specific UI elements using advanced computer vision
+- **Location**: `tools/overlay/` + `tools/vision/`
 - **Behavior**:
+  - Agent provides text description of target element (e.g., "YouTube Like button")
   - Automatically takes a fresh screenshot
-  - Applies 8×6 coordinate grid overlay (0-100 scale, red dots/numbers)
-  - Sends coordinate-overlaid image to agent via WebRTC
-  - Agent uses helper grid overlay to locate target elements
-  - Agent makes ONE-SHOT decision using visible grid numbers
-  - Places arrow at specified coordinates and task is complete
+  - Sends screenshot and description to Modal-hosted UGround vision model
+  - Vision model returns precise coordinates (0-1000 scale)
+  - Automatically determines optimal arrow direction based on position
+  - Places arrow at detected coordinates with high accuracy
   - Process is invisible to user - no technical details mentioned
 
 ## Workflow Examples
@@ -39,11 +39,12 @@ Agent: calls take_screenshot()
 ```
 User: "Point to the Save button"
 Agent: calls show_arrow_overlay()
-→ Fresh screenshot taken + 8×6 coordinate grid applied
-→ Coordinate-overlaid image sent to agent
-→ Agent sees helper grid overlay and locates Save button
-→ Agent responds once: {"x100":75,"y100":25,"direction":"left"}
-→ Arrow appears on screen pointing to Save button
+→ Fresh screenshot taken for vision analysis
+→ Agent provides description: {"description": "Save button in the toolbar"}
+→ Vision model (UGround-V1-2B) analyzes screenshot and locates element
+→ Returns precise coordinates: (750, 120) on 0-1000 scale
+→ System determines direction: "left" (based on position)
+→ Arrow appears on screen pointing accurately to Save button
 → Agent continues normal conversation (no mention of technical process)
 ```
 
@@ -51,13 +52,14 @@ Agent: calls show_arrow_overlay()
 
 | Feature | take_screenshot | show_arrow_overlay |
 |---------|----------------|-------------------|
-| Coordinates | None | 0-100 grid overlay |
+| Coordinates | None | AI vision detection |
 | Purpose | Description | One-shot pointing |
-| Output | Clean image | Grid-overlaid image |
-| Agent Input | None required | x100, y100, direction |
+| Output | Clean image | Element-specific targeting |
+| Agent Input | None required | Element description |
 | Screen Effect | None | Arrow overlay |
 | User Awareness | Visible process | Invisible technical process |
 | Iterations | N/A | Single attempt only |
+| Accuracy | N/A | Vision model precision |
 
 ## Coordinate System (Overlay Only)
 

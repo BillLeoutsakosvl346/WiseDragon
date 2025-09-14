@@ -4,14 +4,37 @@ const fs = require('fs').promises;
 const { getLastScreenshot } = require('../overlay_context');
 const { quickCapture } = require('../screenshot/fastCapture');
 const { adaptiveCompress } = require('../screenshot/fastCompress');
+const { locateElement } = require('../vision');
 
 // Keep track of overlay windows
 let overlays = [];
 
-function createOverlayHTML(dir, x, y, color = 'black', opacity = 0.95) {
+/**
+ * Calculate offset so arrow tip points to target coordinates instead of arrow center
+ */
+function getArrowTipOffset(direction, size = 150) {
+  // Arrow tip is at 85% from left edge in base (right-pointing) orientation
+  // Center is at 50%, so tip is 35% of size away from center
+  const tipOffset = size * 0.35;
+  
+  switch (direction) {
+    case 'right': return { x: -tipOffset, y: 0 };      // Move arrow left so tip points to target
+    case 'down':  return { x: 0, y: -tipOffset };      // Move arrow up so tip points to target  
+    case 'left':  return { x: tipOffset, y: 0 };       // Move arrow right so tip points to target
+    case 'up':    return { x: 0, y: tipOffset };       // Move arrow down so tip points to target
+    default:      return { x: 0, y: 0 };
+  }
+}
+
+function createOverlayHTML(dir, targetX, targetY, color = 'black', opacity = 0.95) {
   // Fixed size for consistent, visible arrows
   const size = 150;
   const ROT = { right: 0, down: 90, left: 180, up: 270 };
+  
+  // Calculate offset so arrow tip points to target coordinates
+  const offset = getArrowTipOffset(dir, size);
+  const arrowCenterX = targetX + offset.x;
+  const arrowCenterY = targetY + offset.y;
   
   return `<!doctype html><meta charset="utf-8">
 <style>
@@ -22,7 +45,7 @@ function createOverlayHTML(dir, x, y, color = 'black', opacity = 0.95) {
 </style>
 <div id="root">
   <svg class="shape arrow" width="${size}" height="${size}" 
-       style="left:${x}px;top:${y}px;opacity:${opacity};transform:translate(-50%,-50%) rotate(${ROT[dir] || 0}deg)">
+       style="left:${arrowCenterX}px;top:${arrowCenterY}px;opacity:${opacity};transform:translate(-50%,-50%) rotate(${ROT[dir] || 0}deg)">
     <g stroke="${color}" stroke-width="${Math.max(4, size * 0.08)}" fill="${color}">
       <!-- Create longer right-pointing arrow (extended shaft + arrowhead) -->
       <line x1="${size * 0.15}" y1="${size * 0.5}" x2="${size * 0.75}" y2="${size * 0.5}"/>
@@ -124,23 +147,44 @@ async function takePlainScreenshot() {
 
 async function execute(args) {
   try {
-    const { direction, color = 'black', opacity = 0.95, duration_ms = 8000 } = args;
+    const { description, color = 'black', opacity = 0.95, duration_ms = 8000 } = args;
     
+    console.log(`🎯 Arrow overlay requested: "${description}"`);
     cleanupOverlays();
 
+    // Take a fresh screenshot for vision analysis
     const plainScreenshot = await takePlainScreenshot();
+    console.log(`📷 Screenshot taken: ${plainScreenshot.path}`);
 
-    const { x100, y100 } = args;
-    const { x_norm, y_norm } = coordsToNorm(x100, y100);
+    // Use vision service to locate the element
+    const visionResult = await locateElement(plainScreenshot.path, description);
+    
+    if (!visionResult.success) {
+      console.error('🔴 Vision service failed:', visionResult.error);
+      return {
+        success: false,
+        error: `Vision service failed: ${visionResult.error}`,
+        description
+      };
+    }
+
+    // Extract coordinates and direction from vision result
+    const { coordinates, direction } = visionResult;
+    const { x_norm, y_norm } = coordsToNorm(coordinates.percent.x, coordinates.percent.y);
     const { x: gx, y: gy } = normToScreen(x_norm, y_norm, plainScreenshot.displayBounds);
 
+    // Create overlay on the correct display
     const target = screen.getDisplayNearestPoint({ x: gx, y: gy });
-    const localX = gx - target.bounds.x, localY = gy - target.bounds.y;
+    const targetLocalX = gx - target.bounds.x;
+    const targetLocalY = gy - target.bounds.y;
 
-    const htmlContent = createOverlayHTML(direction, localX, localY, color, opacity);
+    console.log(`🏹 Placing ${direction} arrow pointing to screen (${gx}, ${gy}) -> local (${targetLocalX}, ${targetLocalY})`);
+
+    const htmlContent = createOverlayHTML(direction, targetLocalX, targetLocalY, color, opacity);
     const overlay = makeOverlayFor(target, htmlContent);
     overlays.push(overlay);
 
+    // Auto-cleanup after duration
     setTimeout(() => {
       if (overlay && !overlay.isDestroyed()) {
         overlay.destroy();
@@ -150,27 +194,40 @@ async function execute(args) {
 
     const base64Image = plainScreenshot.buffer.toString('base64');
     
+    console.log(`✅ Arrow overlay successful: ${direction} arrow pointing to "${description}"`);
+    
     return {
       success: true,
-      message: `Arrow overlay displayed: ${direction} arrow at (${gx}, ${gy})`,
+      message: `Arrow overlay displayed: ${direction} arrow pointing to "${description}"`,
+      description,
       direction,
-      coordinates: { x: gx, y: gy },
+      coordinates: { 
+        screen: { x: gx, y: gy },
+        pixel: coordinates.pixel,
+        normalized: coordinates.normalized,
+        percent: coordinates.percent
+      },
       displayBounds: target.bounds,
       screenshotPath: plainScreenshot.path,
       image: base64Image,
       imageFormat: 'png',
       width: plainScreenshot.imageW,
       height: plainScreenshot.imageH,
-      duration_ms
+      duration_ms,
+      visionModel: {
+        response: visionResult.modelResponse,
+        accuracy: 'AI-powered location detection'
+      }
     };
 
   } catch (error) {
-    console.error('Overlay arrow failed:', error.message);
+    console.error('🔴 Overlay arrow failed:', error.message);
     cleanupOverlays();
     
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      description: args.description || 'unknown'
     };
   }
 }

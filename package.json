@@ -1,9 +1,12 @@
 {
-  "name": "new-folder",
+  "name": "wisedragon",
   "version": "1.0.0",
   "main": "main.js",
+  "private": true,
   "scripts": {
     "start": "electron .",
+    "dev": "electron . --dev",
+    "uground": "node vision_model_apis/uground_api.js",
     "generate-grids": "node scripts/generateGrids.js",
     "rebuild": "npx @electron/rebuild",
     "postinstall": "npx @electron/rebuild"
@@ -17,8 +20,10 @@
     "electron": "^38.0.0"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.11.3",
     "@jitsi/robotjs": "^0.6.17",
     "dotenv": "^17.2.2",
+    "openai": "^4.57.0",
     "screenshot-desktop": "^1.15.2",
     "sharp": "^0.34.3"
   }

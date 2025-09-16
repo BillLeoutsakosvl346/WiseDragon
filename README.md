@@ -113,20 +113,7 @@ Shared context system that:
 - **WebRTC Optimization**: Palette compression for fast transmission
 - **Multi-stage Pipeline**: Resize → Quantize → Compress → Validate
 
-#### `vision/` - AI Vision System
-
-**`index.js`** - Vision Service Entry Point:
-- Exports the main `locateElement` function for UI detection
-- Provides clean interface to the Modal API integration
-
-**`modalService.js`** - Modal API Integration:
-- **UGround Model**: Interfaces with Modal-hosted `osunlp/UGround-V1-2B` vision model
-- **Screenshot Analysis**: Converts PNG files to base64 for API transmission
-- **Coordinate Processing**: Handles 0-1000 scale normalization and pixel conversion
-- **Smart Direction Logic**: Automatically determines arrow direction based on element position
-- **Error Handling**: Robust error handling with detailed logging and fallback behavior
-
-#### `overlay/` - Screen Annotation System
+#### `overlay/` - Screen Annotation System with AI Vision
 
 **`schema.js`** - Defines the `show_arrow_overlay` function:
 - Accepts text descriptions of UI elements to locate
@@ -142,16 +129,26 @@ Shared context system that:
 - **Auto-Cleanup**: 8-second display duration with automatic removal
 - **Screenshot Integration**: Takes fresh screenshot for vision analysis
 
+**`modalService.js`** - Modal API Integration:
+- **UGround Model**: Interfaces with Modal-hosted `osunlp/UGround-V1-2B` vision model
+- **Screenshot Analysis**: Converts PNG files to base64 for API transmission
+- **Coordinate Processing**: Handles 0-1000 scale normalization and pixel conversion
+- **Smart Direction Logic**: Automatically determines arrow direction based on element position
+- **Error Handling**: Robust error handling with detailed logging and fallback behavior
+
 ### Data Storage Directories
 
 #### `screenshots_seen/` - Visual Memory
-Archive of all screenshots taken by the AI assistant:
+Archive of all screenshots organized by conversation session:
+- **Session Organization**: Each app session creates a timestamped folder (e.g., `session_2025-09-14_15-30-45/`)
+- **Automatic Management**: New session folder created on app start, ended on app close
+- **Session Stats**: Tracks screenshot count and session duration
 - **Naming Convention**: `YYYY-MM-DD_HH-MM-SS-MS_WxH_Ccolors.png`
 - **Metadata Encoding**: Resolution and color count embedded in filename
 - **Compression Types**: 
   - `64colors.png` - High compression for fast transmission
   - `plain.png` - Uncompressed for overlay operations
-- **Purpose**: Debugging, analysis, and maintaining visual context history
+- **Purpose**: Debugging, analysis, and maintaining visual context history per session
 
 #### `voice_recordings/` - Audio Library
 Pre-generated voice samples organized by OpenAI voice types:

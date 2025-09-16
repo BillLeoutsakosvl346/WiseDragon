@@ -4,6 +4,7 @@ const path = require('path');
 const { setLastScreenshot } = require('../overlay_context');
 const { quickCapture, getAvailableMethods } = require('./fastCapture');
 const { adaptiveCompress } = require('./fastCompress');
+const sessionManager = require('../sessionManager');
 
 async function execute(args) {
   const start = performance.now();
@@ -27,14 +28,9 @@ async function execute(args) {
     const width = compressed.finalWidth || frameData.width || 1366;
     const height = compressed.finalHeight || frameData.height || 768;
     
-    const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
-    if (!fs.existsSync(screenshotsDir)) {
-      fs.mkdirSync(screenshotsDir, { recursive: true });
-    }
-    
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
     const filename = `${timestamp}_${width}x${height}_${compressed.colors}colors.png`;
-    const filePath = path.join(screenshotsDir, filename);
+    const filePath = sessionManager.getScreenshotPath(filename);
     
     fs.writeFileSync(filePath, compressed.buffer);
     

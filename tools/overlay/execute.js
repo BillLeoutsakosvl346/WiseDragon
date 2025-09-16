@@ -4,7 +4,8 @@ const fs = require('fs').promises;
 const { getLastScreenshot } = require('../overlay_context');
 const { quickCapture } = require('../screenshot/fastCapture');
 const { adaptiveCompress } = require('../screenshot/fastCompress');
-const { locateElement } = require('../vision');
+const { locateElement } = require('./hfVisionService');
+const sessionManager = require('../sessionManager');
 
 // Keep track of overlay windows
 let overlays = [];
@@ -126,14 +127,9 @@ async function takePlainScreenshot() {
     screenshotBuffer = frameData.buffer;
   }
   
-  const screenshotsDir = path.join(__dirname, '..', '..', 'screenshots_seen');
-  if (!require('fs').existsSync(screenshotsDir)) {
-    require('fs').mkdirSync(screenshotsDir, { recursive: true });
-  }
-  
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
   const filename = `${timestamp}_${width}x${height}_plain.png`;
-  const outputPath = path.join(screenshotsDir, filename);
+  const outputPath = sessionManager.getScreenshotPath(filename);
   await fs.writeFile(outputPath, screenshotBuffer);
   
   return {
@@ -146,18 +142,27 @@ async function takePlainScreenshot() {
 }
 
 async function execute(args) {
+  const startTime = performance.now();
   try {
     const { description, color = 'black', opacity = 0.95, duration_ms = 8000 } = args;
     
     console.log(`🎯 Arrow overlay requested: "${description}"`);
+    console.log(`⏱️  [TIMING] Overlay request started at ${startTime.toFixed(2)}ms`);
     cleanupOverlays();
 
     // Take a fresh screenshot for vision analysis
+    const screenshotStart = performance.now();
     const plainScreenshot = await takePlainScreenshot();
+    const screenshotEnd = performance.now();
     console.log(`📷 Screenshot taken: ${plainScreenshot.path}`);
+    console.log(`⏱️  [TIMING] Screenshot capture took ${(screenshotEnd - screenshotStart).toFixed(2)}ms`);
 
     // Use vision service to locate the element
+    const visionStart = performance.now();
+    console.log(`⏱️  [TIMING] Starting vision service at ${(visionStart - startTime).toFixed(2)}ms from start`);
     const visionResult = await locateElement(plainScreenshot.path, description);
+    const visionEnd = performance.now();
+    console.log(`⏱️  [TIMING] Vision service completed in ${(visionEnd - visionStart).toFixed(2)}ms`);
     
     if (!visionResult.success) {
       console.error('🔴 Vision service failed:', visionResult.error);
@@ -169,6 +174,7 @@ async function execute(args) {
     }
 
     // Extract coordinates and direction from vision result
+    const overlayStart = performance.now();
     const { coordinates, direction } = visionResult;
     const { x_norm, y_norm } = coordsToNorm(coordinates.percent.x, coordinates.percent.y);
     const { x: gx, y: gy } = normToScreen(x_norm, y_norm, plainScreenshot.displayBounds);
@@ -183,6 +189,8 @@ async function execute(args) {
     const htmlContent = createOverlayHTML(direction, targetLocalX, targetLocalY, color, opacity);
     const overlay = makeOverlayFor(target, htmlContent);
     overlays.push(overlay);
+    const overlayEnd = performance.now();
+    console.log(`⏱️  [TIMING] Overlay creation took ${(overlayEnd - overlayStart).toFixed(2)}ms`);
 
     // Auto-cleanup after duration
     setTimeout(() => {
@@ -194,7 +202,9 @@ async function execute(args) {
 
     const base64Image = plainScreenshot.buffer.toString('base64');
     
+    const totalTime = performance.now() - startTime;
     console.log(`✅ Arrow overlay successful: ${direction} arrow pointing to "${description}"`);
+    console.log(`⏱️  [TIMING] ✨ TOTAL TIME: ${totalTime.toFixed(2)}ms (${(totalTime/1000).toFixed(1)}s)`);
     
     return {
       success: true,

@@ -1,5 +1,7 @@
-/node_modules
+node_modules/
 .env
+*.json
+*.log
 .cursor
 /screenshots_seen
-/screenshot_speed_research
+/test_files

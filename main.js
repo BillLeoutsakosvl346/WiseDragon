@@ -3,6 +3,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const toolRegistry = require('./tools');
+const sessionManager = require('./tools/sessionManager');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
@@ -64,6 +65,9 @@ ipcMain.handle('tool:execute', async (event, { name, args }) => {
 });
 
 app.whenReady().then(() => {
+  // Start a new screenshot session when the app launches
+  sessionManager.startNewSession();
+  
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -71,6 +75,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // End the current session and log statistics
+  sessionManager.endSession();
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }

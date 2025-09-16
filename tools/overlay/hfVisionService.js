@@ -1,7 +1,7 @@
 /**
- * Modal API Service for UGround Vision Model
+ * Hugging Face API Service for UGround Vision Model
  * 
- * Handles communication with the Modal-hosted vision model
+ * Handles communication with the HF-hosted vision model via GCS uploads
  * for precise UI element location detection.
  */
 
@@ -9,26 +9,18 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-// Modal API Configuration
-const BASE_URL = 'https://billleoutsakosvl346--uground-vllm-serve.modal.run/v1';
-const MODEL = 'osunlp/UGround-V1-2B';
+// We'll dynamically import uploadAndSign in the function where it's needed
 
-// Modal API Credentials from environment variables
-const MODAL_KEY = process.env.MODAL_KEY;
-const MODAL_SECRET = process.env.MODAL_SECRET;
+// HF API Configuration from .env
+const HF_ENDPOINT = process.env.HF_ENDPOINT;
+const HF_TOKEN = process.env.HF_TOKEN;
+const HF_MODEL = process.env.HF_MODEL || "osunlp/UGround-V1-2B";
 
-if (!MODAL_KEY || !MODAL_SECRET) {
-  throw new Error('MODAL_KEY and MODAL_SECRET must be set in .env file');
+if (!HF_ENDPOINT || !HF_TOKEN) {
+  throw new Error('HF_ENDPOINT and HF_TOKEN must be set in .env file');
 }
 
-/**
- * Convert PNG file to base64 data URL
- */
-function toDataURL(pngPath) {
-  const buffer = fs.readFileSync(pngPath);
-  const base64 = buffer.toString('base64');
-  return `data:image/png;base64,${base64}`;
-}
+// Remove toDataURL function - we now use GCS signed URLs instead
 
 /**
  * Extract width and height from screenshot filename
@@ -42,19 +34,19 @@ function inferDimensions(filePath) {
 }
 
 /**
- * Build messages for the vision model API call
+ * Build messages for the HF vision model API call
  */
-function buildMessages(dataUrl, prompt) {
+function buildMessages(signedUrl, prompt) {
   return [
     { 
       role: 'system', 
-      content: 'Return ONLY one line like "(x, y)" on a 0..1000 grid.' 
+      content: 'Output exactly one line "(x, y)". x,y are integers in 0..1000 from the image top-left.' 
     },
     {
       role: 'user',
       content: [
-        { type: 'image_url', image_url: { url: dataUrl } },
-        { type: 'text', text: `${prompt}\nOutput just "(x, y)".` }
+        { type: 'image_url', image_url: { url: signedUrl } },
+        { type: 'text', text: `Locate the ${prompt}.` }
       ]
     }
   ];
@@ -108,42 +100,59 @@ function determineDirection(normalizedCoords) {
 }
 
 /**
- * Locate UI element using Modal-hosted vision model
+ * Locate UI element using HF-hosted vision model via GCS uploads
  * 
  * @param {string} screenshotPath - Path to the screenshot file
  * @param {string} prompt - Description of element to locate
  * @returns {Promise<Object>} Location result with pixel coordinates and direction
  */
 async function locateElement(screenshotPath, prompt) {
+  const visionStartTime = performance.now();
   try {
     console.log(`🔍 Vision: Locating "${prompt}" in ${path.basename(screenshotPath)}`);
     
-    // Prepare request data
-    const dataUrl = toDataURL(screenshotPath);
-    const dimensions = inferDimensions(screenshotPath);
-    const messages = buildMessages(dataUrl, prompt);
+    // 1) Dynamically import and upload screenshot to GCS
+    console.log(`⏱️  [VISION] Starting GCS upload at ${performance.now().toFixed(2)}ms`);
+    const uploadStart = performance.now();
+    const { uploadAndSign } = await import('../../vision_model_apis/gcs_upload_and_sign.js');
+    const signedUrl = await uploadAndSign(screenshotPath);
+    const uploadEnd = performance.now();
+    console.log(`📤 Uploaded to GCS: ${signedUrl.substring(0, 100)}...`);
+    console.log(`⏱️  [VISION] GCS upload took ${(uploadEnd - uploadStart).toFixed(2)}ms`);
     
-    // Call Modal API
-    const response = await fetch(`${BASE_URL}/chat/completions`, {
+    // 2) Prepare request data
+    const prepStart = performance.now();
+    const dimensions = inferDimensions(screenshotPath);
+    const messages = buildMessages(signedUrl, prompt);
+    const prepEnd = performance.now();
+    console.log(`⏱️  [VISION] Request preparation took ${(prepEnd - prepStart).toFixed(2)}ms`);
+    
+    // 3) Call HF API
+    console.log(`⏱️  [VISION] Starting HF API call at ${(performance.now() - visionStartTime).toFixed(2)}ms from vision start`);
+    const apiStart = performance.now();
+    const url = `${HF_ENDPOINT.replace(/\/+$/, "")}/chat/completions`;
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Modal-Key': MODAL_KEY,
-        'Modal-Secret': MODAL_SECRET
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: HF_MODEL,
         messages,
-        temperature: 0,
+        temperature: 0.2,
         max_tokens: 16
       })
     });
+    const apiEnd = performance.now();
+    console.log(`⏱️  [VISION] HF API call took ${(apiEnd - apiStart).toFixed(2)}ms`);
     
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Modal API error ${response.status}: ${errorText}`);
+      throw new Error(`HF API error ${response.status}: ${errorText}`);
     }
     
+    const parseStart = performance.now();
     const result = await response.json();
     const responseText = result?.choices?.[0]?.message?.content?.trim() ?? '';
     
@@ -153,8 +162,13 @@ async function locateElement(screenshotPath, prompt) {
     const normalizedCoords = parseCoordinates(responseText);
     const pixelCoords = transformToPixels(normalizedCoords, dimensions);
     const direction = determineDirection(normalizedCoords);
+    const parseEnd = performance.now();
     
     console.log(`📍 Located at: (${pixelCoords.x}, ${pixelCoords.y}) -> ${direction} arrow`);
+    console.log(`⏱️  [VISION] Response parsing took ${(parseEnd - parseStart).toFixed(2)}ms`);
+    
+    const totalVisionTime = performance.now() - visionStartTime;
+    console.log(`⏱️  [VISION] 🎯 VISION TOTAL: ${totalVisionTime.toFixed(2)}ms (${(totalVisionTime/1000).toFixed(1)}s)`);
     
     return {
       success: true,
@@ -168,14 +182,23 @@ async function locateElement(screenshotPath, prompt) {
       },
       direction,
       dimensions,
-      modelResponse: responseText
+      modelResponse: responseText,
+      timing: {
+        total: totalVisionTime,
+        upload: uploadEnd - uploadStart,
+        api: apiEnd - apiStart,
+        parsing: parseEnd - parseStart
+      }
     };
     
   } catch (error) {
+    const errorTime = performance.now() - visionStartTime;
     console.error('🔴 Vision service error:', error.message);
+    console.log(`⏱️  [VISION] ❌ FAILED after ${errorTime.toFixed(2)}ms (${(errorTime/1000).toFixed(1)}s)`);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      timing: { total: errorTime }
     };
   }
 }

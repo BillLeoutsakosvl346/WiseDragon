@@ -1,4 +1,4 @@
-// vision_model_apis/gcs_upload_and_sign.js
+// tools/overlay/gcs_upload_and_sign.js
 import "dotenv/config";
 import { Storage } from "@google-cloud/storage";
 import path from "node:path";

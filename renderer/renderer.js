@@ -93,16 +93,14 @@ function displayAgentImage(base64Image, imageInfo) {
     agentViewEl.src = `data:image/png;base64,${base64Image}`;
     agentViewEl.classList.add('visible');
     
-    let infoText = '';
-    if (imageInfo.type === 'screenshot') {
-      infoText = `Screenshot: ${imageInfo.width}×${imageInfo.height}`;
-    } else if (imageInfo.type === 'coordinate-overlay') {
-      infoText = `Coordinate Overlay: ${imageInfo.width}×${imageInfo.height}`;
-    } else if (imageInfo.type === 'plain-screenshot') {
-      infoText = `Plain Screenshot: ${imageInfo.width}×${imageInfo.height}`;
-    }
+    const typeNames = {
+      'screenshot': 'Screenshot',
+      'coordinate-overlay': 'Coordinate Overlay', 
+      'plain-screenshot': 'Plain Screenshot'
+    };
     
-    imageInfoEl.textContent = infoText;
+    const typeName = typeNames[imageInfo.type] || 'Image';
+    imageInfoEl.textContent = `${typeName}: ${imageInfo.width}×${imageInfo.height}`;
   }
 }
 
@@ -158,11 +156,13 @@ async function sendScreenshot(callInfo, result) {
 }
 
 async function sendFunctionCallResult(callInfo, result) {
+  // Handle screenshot results
   if ((result.imageUrl || result.image) && (result.source === 'desktopCapturer' || result.source === 'robotjs' || result.source === 'screenshot-desktop')) {
     await sendScreenshot(callInfo, result);
     return;
   }
   
+  // Handle arrow overlay with image
   if (result.image && callInfo.name === 'show_arrow_overlay') {
     displayAgentImage(result.image, {
       type: 'plain-screenshot',
@@ -170,23 +170,13 @@ async function sendFunctionCallResult(callInfo, result) {
       height: result.height
     });
     
-    dataChannel.send(JSON.stringify({
-      type: 'conversation.item.create',
-      event_id: generateEventId(),
-      item: {
-        type: 'function_call_output',
-        call_id: callInfo.event.call_id,
-        output: JSON.stringify({
-          success: result.success,
-          message: 'Arrow placed successfully. Continue conversation naturally.'
-        })
-      }
-    }));
-    
-    await triggerResponseCreation();
-    return;
+    result = {
+      success: result.success,
+      message: 'Arrow placed successfully. Continue conversation naturally.'
+    };
   }
   
+  // Send standard function call output
   dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),

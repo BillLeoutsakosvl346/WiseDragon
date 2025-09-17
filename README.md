@@ -1,302 +1,326 @@
-# WiseDragon - AI Voice Assistant with Visual Screen Control
+# WiseDragon
 
-WiseDragon is an Electron-based desktop application that provides real-time voice interaction with an AI assistant capable of seeing your screen and pointing to UI elements. The assistant can take screenshots, analyze visual content, and place directional arrows on your screen to guide your attention to specific interface elements.
+**An AI-powered desktop assistant that sees and interacts with your screen through voice commands.**
 
-## 🏗️ Architecture Overview
+WiseDragon is an Electron.js desktop application that combines OpenAI's Realtime API with computer vision to create an intelligent assistant that can see your screen, understand voice commands, and provide visual feedback through overlays. The application uses advanced AI models to identify UI elements and objects on screen, then points to them with precision-placed arrows.
 
-The application follows a three-layer architecture:
-
-1. **Main Process Layer** (`main.js`) - Electron's main process that manages the application lifecycle, window creation, and secure communication with OpenAI's Realtime API
-2. **Renderer Process Layer** (`renderer/`) - The user interface that handles voice communication, WebRTC connections, and real-time audio streaming
-3. **Tools Layer** (`tools/`) - Modular system for AI-powered screen interaction capabilities
-
-### Core Technologies
-- **Electron** - Cross-platform desktop framework
-- **WebRTC** - Real-time peer-to-peer audio communication with OpenAI
-- **OpenAI Realtime API** - GPT-powered voice conversation with function calling
-- **Sharp** - High-performance image processing for screenshot compression
-- **RobotJS/screenshot-desktop** - Native screen capture capabilities
-
----
-
-## 📁 Project Structure
-
-### Root Files
-
-#### `main.js` - Application Entry Point
-The main Electron process that:
-- Initializes the application window (800x800px)
-- Loads OpenAI API key from environment variables or `.env` file
-- Handles secure IPC communication between renderer and tools
-- Manages tool schema registration and execution
-- Provides the `oai:getEphemeral` endpoint for obtaining OpenAI session tokens
-- Provides the `tool:execute` endpoint for running AI-requested tools
-
-#### `preload.js` - Security Bridge
-Electron's security layer that:
-- Safely exposes `window.oai.getEphemeral()` to the renderer process
-- Safely exposes `window.oai.executeTool()` for function execution
-- Maintains context isolation while enabling necessary API access
-
-#### `package.json` - Dependencies & Scripts
-Project configuration defining:
-- **Core Dependencies:**
-  - `@jitsi/robotjs` - Native screen capture and input automation
-  - `screenshot-desktop` - Cross-platform screenshot functionality
-  - `sharp` - Advanced image processing and compression
-  - `dotenv` - Environment variable management
-- **Scripts:**
-  - `npm start` - Launch the application
-  - `npm run rebuild` - Rebuild native modules
-
-### `renderer/` - User Interface
-
-#### `index.html` - Application UI
-Minimal, clean interface featuring:
-- Connect/Disconnect buttons for voice session management
-- Status display showing connection state and current activity
-- Image viewer for displaying AI's current screen view
-- Auto-playing audio element for AI voice responses
-
-#### `renderer.js` - Voice Communication Engine
-The core client-side logic handling:
-- **WebRTC Connection Management** - Establishes secure peer-to-peer connection with OpenAI
-- **Audio Stream Processing** - Captures microphone input and plays AI voice responses
-- **Real-time Event Handling** - Processes function calls, responses, and conversation flow
-- **Screenshot Display** - Shows the AI's current visual context to the user
-- **Function Call Coordination** - Manages tool execution and result communication
-
-**Key Features:**
-- Automatic microphone access and audio streaming
-- Real-time status updates during AI operations
-- Image display with metadata (resolution, type)
-- Seamless function call execution and response handling
-
-### `tools/` - AI Capabilities System
-
-#### `index.js` - Tool Registry
-Central coordinator that:
-- Registers available tools (`take_screenshot`, `show_arrow_overlay`)
-- Provides schema definitions for OpenAI function calling
-- Routes tool execution requests to appropriate handlers
-- Manages tool lifecycle and error handling
-
-#### `overlay_context.js` - Screenshot State Management
-Shared context system that:
-- Stores metadata from the last screenshot capture
-- Coordinates between screenshot and overlay tools
-- Tracks display bounds, image dimensions, and file paths
-
-#### `screenshot/` - Screen Capture System
-
-**`schema.js`** - Defines the `take_screenshot` function for OpenAI:
-- No parameters required
-- Encourages proactive visual analysis
-- Optimized for general screen description and problem-solving
-
-**`execute.js`** - Screenshot Implementation:
-- Multi-method capture fallback (RobotJS → screenshot-desktop)
-- Performance-optimized compression pipeline
-- Automatic file saving with timestamp/resolution naming
-- WebRTC-optimized palette compression (8-64 colors)
-- Returns base64-encoded images for AI analysis
-
-**`fastCapture.js`** - Cross-Platform Screen Capture:
-- **Primary Method**: RobotJS for native BGRA capture
-- **Fallback Method**: screenshot-desktop for PNG capture
-- Automatic method selection based on available dependencies
-- Consistent interface across different capture backends
-
-**`fastCompress.js`** - Intelligent Image Optimization:
-- **BGRA Processing**: Converts raw pixel data to RGB for Sharp processing
-- **Adaptive Compression**: Adjusts quality based on file size targets
-- **WebRTC Optimization**: Palette compression for fast transmission
-- **Multi-stage Pipeline**: Resize → Quantize → Compress → Validate
-
-#### `overlay/` - Screen Annotation System with AI Vision
-
-**`schema.js`** - Defines the `show_arrow_overlay` function:
-- Accepts text descriptions of UI elements to locate
-- One-shot operation with AI-powered element detection
-- Invisible technical process from user perspective
-- Comprehensive examples and guidelines for element descriptions
-
-**`execute.js`** - Arrow Overlay Implementation:
-- **Vision Integration**: Calls Modal API to detect element coordinates
-- **Multi-Display Support**: Automatically detects target display
-- **Dynamic HTML Generation**: Creates SVG arrows with customizable appearance
-- **Transparent Overlays**: Always-on-top, click-through overlay windows
-- **Auto-Cleanup**: 8-second display duration with automatic removal
-- **Screenshot Integration**: Takes fresh screenshot for vision analysis
-
-**`modalService.js`** - Modal API Integration:
-- **UGround Model**: Interfaces with Modal-hosted `osunlp/UGround-V1-2B` vision model
-- **Screenshot Analysis**: Converts PNG files to base64 for API transmission
-- **Coordinate Processing**: Handles 0-1000 scale normalization and pixel conversion
-- **Smart Direction Logic**: Automatically determines arrow direction based on element position
-- **Error Handling**: Robust error handling with detailed logging and fallback behavior
-
-### Data Storage Directories
-
-#### `screenshots_seen/` - Visual Memory
-Archive of all screenshots organized by conversation session:
-- **Session Organization**: Each app session creates a timestamped folder (e.g., `session_2025-09-14_15-30-45/`)
-- **Automatic Management**: New session folder created on app start, ended on app close
-- **Session Stats**: Tracks screenshot count and session duration
-- **Naming Convention**: `YYYY-MM-DD_HH-MM-SS-MS_WxH_Ccolors.png`
-- **Metadata Encoding**: Resolution and color count embedded in filename
-- **Compression Types**: 
-  - `64colors.png` - High compression for fast transmission
-  - `plain.png` - Uncompressed for overlay operations
-- **Purpose**: Debugging, analysis, and maintaining visual context history per session
-
-#### `voice_recordings/` - Audio Library
-Pre-generated voice samples organized by OpenAI voice types:
-- **Voice Models**: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer
-- **Sample Count**: 10 numbered samples per voice (1.mp3 - 10.mp3)
-- **Format**: MP3 compressed audio files
-- **Purpose**: Voice selection testing and audio system validation
-
----
-
-## 🔧 How It Works
-
-### 1. Voice Activation Flow
-```
-User clicks "Connect" 
-→ Microphone access requested
-→ WebRTC connection established with OpenAI
-→ Ephemeral session token obtained
-→ Real-time audio streaming begins
-→ AI responds when user pauses speaking
-```
-
-### 2. Screenshot Analysis Flow  
-```
-User mentions screen content/problems
-→ AI calls take_screenshot()
-→ Fast capture (RobotJS/screenshot-desktop)
-→ Intelligent compression (Sharp processing)
-→ Base64 transmission to AI
-→ AI analyzes and describes visual content
-```
-
-### 3. UI Pointing Flow
-```
-User: "Click the Save button"
-→ AI calls show_arrow_overlay()  
-→ Fresh screenshot captured
-→ AI provides element description to vision model
-→ Modal API processes screenshot with UGround-V1-2B
-→ Vision model returns precise coordinates (0-1000 scale)
-→ System determines optimal arrow direction automatically
-→ Arrow overlay created on screen at detected location
-→ 8-second display with auto-cleanup
-```
-
-### 4. Tool Execution Pipeline
-```
-AI decides to use tool
-→ Function call event received via WebRTC
-→ tool:execute IPC message to main process  
-→ Tool registry routes to appropriate handler
-→ Tool executes with provided arguments
-→ Result returned via IPC
-→ Success/failure sent back to AI
-→ AI continues conversation naturally
-```
-
----
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+ 
-- Windows/macOS/Linux with display server
-- Microphone access
-- OpenAI API key with Realtime API access
-- Modal API key and secret for vision model access
+
+- **Node.js** (v16 or higher)
+- **npm** (v7 or higher) 
+- **OpenAI API Key** with Realtime API access
+- **Google Cloud Storage** account (for vision model image uploads)
+- **Windows/macOS/Linux** (cross-platform Electron support)
 
 ### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd WiseDragon
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   Create a `.env` file in the root directory:
+   ```bash
+   # OpenAI Configuration (Required)
+   OPENAI_API_KEY=your_openai_api_key_here
+
+   # Hugging Face Vision Model (Required for UI element detection)
+   HF_ENDPOINT=your_hugging_face_endpoint
+   HF_TOKEN=your_hf_token
+   HF_MODEL=osunlp/UGround-V1-2B
+
+   # Google Cloud Storage (Required for image uploads)
+   GCS_BUCKET=your_gcs_bucket_name
+   GCS_KEY_BASE64=your_base64_encoded_service_account_key
+   # OR alternatively:
+   GCS_KEY_PATH=path/to/your/service-account-key.json
+
+   # Replicate API (Optional - for Grounding DINO model)
+   REPLICATE_API_TOKEN=your_replicate_token
+   ```
+
+4. **Start the application**
+   ```bash
+   npm start
+   ```
+
+### Development Mode
 ```bash
-# Install dependencies
-npm install
-
-# Set up your API keys
-# Create .env file in project root:
-echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
-echo "MODAL_KEY=your_modal_key_here" >> .env
-echo "MODAL_SECRET=your_modal_secret_here" >> .env
-
-# Start the application
-npm start
+npm run dev
 ```
 
-### First Use
-1. Launch the application with `npm start`
-2. Click "Connect" to begin voice session
-3. Grant microphone permissions when prompted
-4. Wait for "Connected" status
-5. Start speaking naturally - the AI responds when you pause
+## 🏗️ Architecture
+
+WiseDragon follows the standard **Electron.js architecture** with clear separation between main and renderer processes:
+
+### Main Process (`main.js`)
+- **Electron app lifecycle management** - Window creation, app events, session management
+- **IPC (Inter-Process Communication) handlers** - Bridges renderer requests to backend tools
+- **OpenAI Realtime API integration** - Manages ephemeral tokens and authentication
+- **Tool execution orchestration** - Coordinates screenshot capture and overlay placement
+
+### Renderer Process (`renderer/`)
+- **WebRTC voice communication** - Real-time audio streaming with OpenAI's voice model
+- **User interface controls** - Connect/disconnect buttons, status display, image preview
+- **Function call handling** - Processes AI tool requests and displays visual feedback
+- **Screen interaction visualization** - Shows screenshots and overlay results to user
+
+### Preload Script (`preload.js`)
+- **Secure API exposure** - Uses `contextBridge` to safely expose main process functions
+- **IPC communication layer** - Handles `oai:getEphemeral` and `tool:execute` calls
+- **Security isolation** - Maintains Electron's security model with context isolation
+
+### Tool System (`tools/`)
+The application uses a **modular tool architecture** where AI can execute specific functions:
+
+- **Screenshot Tool** - Captures screen images using multiple methods (RobotJS, screenshot-desktop)
+- **Overlay Tool** - Places precision arrows on screen using computer vision models
+- **Session Management** - Organizes screenshots into timestamped conversation sessions
+
+### Computer Vision Pipeline
+1. **Screenshot Capture** - Multi-method fallback system for cross-platform compatibility
+2. **Image Upload** - Secure upload to Google Cloud Storage with signed URLs  
+3. **Vision Model Processing** - UGround for UI elements, Grounding DINO for real objects
+4. **Coordinate Mapping** - Precise pixel coordinate calculation and arrow placement
+5. **Overlay Rendering** - SVG-based arrows with automatic positioning and cleanup
+
+## 📁 File Structure
+
+### 🟢 Main Process Files
+
+#### `main.js`
+**Primary purpose:** Electron main process entry point and application lifecycle manager  
+**Process context:** Main process  
+**Key responsibilities:** Creates browser windows, handles IPC communication, manages OpenAI API authentication, coordinates tool execution  
+**Dependencies:** `tools/index.js`, `tools/sessionManager.js`  
+**Contribution notes:** Modify here for new IPC handlers or app-level configuration changes
+
+#### `package.json` 
+**Primary purpose:** Project configuration and dependency management  
+**Process context:** Build/configuration  
+**Key responsibilities:** Defines Electron scripts, manages npm dependencies, sets application metadata  
+**Contribution notes:** Add new dependencies here; use `npm run rebuild` after native module changes
+
+#### `preload.js`
+**Primary purpose:** Secure bridge between main and renderer processes  
+**Process context:** Preload script (runs in renderer with Node.js access)  
+**Key responsibilities:** Exposes safe APIs to renderer using contextBridge, handles IPC communication  
+**Contribution notes:** Add new main process functions here when expanding renderer capabilities
+
+### 🔵 Renderer Process Files
+
+#### `renderer/index.html`
+**Primary purpose:** User interface structure and styling  
+**Process context:** Renderer process  
+**Key responsibilities:** Defines UI layout, contains embedded styles, loads renderer JavaScript  
+**Contribution notes:** Modify for UI changes; keep styling simple for faster loading
+
+#### `renderer/renderer.js`
+**Primary purpose:** Frontend application logic and WebRTC voice communication  
+**Process context:** Renderer process  
+**Key responsibilities:** Manages voice connection to OpenAI, handles function call execution, displays visual feedback  
+**Dependencies:** Uses APIs exposed by `preload.js`  
+**Contribution notes:** Core file for UI interactions and voice handling; test thoroughly after changes
+
+### 🟡 Tool System Files
+
+#### `tools/index.js`
+**Primary purpose:** Tool registry and execution coordinator  
+**Process context:** Main process  
+**Key responsibilities:** Registers available tools, provides schemas to OpenAI, routes tool execution calls  
+**Dependencies:** `tools/screenshot/`, `tools/overlay/`  
+**Contribution notes:** Add new tools here following the schema + executor pattern
+
+#### `tools/sessionManager.js`
+**Primary purpose:** Organizes screenshots into timestamped conversation sessions  
+**Process context:** Main process  
+**Key responsibilities:** Creates session folders, manages file paths, tracks screenshot counts  
+**Contribution notes:** Handles all screenshot storage organization; modify for different storage patterns
+
+### 🟠 Screenshot Tool (`tools/screenshot/`)
+
+#### `tools/screenshot/index.js`
+**Primary purpose:** Screenshot tool module entry point  
+**Process context:** Main process  
+**Key responsibilities:** Exports tool schema and executor for the main tool registry
+
+#### `tools/screenshot/schema.js`
+**Primary purpose:** OpenAI function calling schema definition for screenshots  
+**Process context:** Configuration  
+**Key responsibilities:** Defines how OpenAI can call the screenshot function, including parameters and descriptions  
+**Contribution notes:** Modify to change how AI interacts with screenshot functionality
+
+#### `tools/screenshot/execute.js`
+**Primary purpose:** Screenshot capture implementation with compression and optimization  
+**Process context:** Main process  
+**Key responsibilities:** Captures screen using multiple methods, compresses images, saves to session folders  
+**Dependencies:** `fastCapture.js`, `fastCompress.js`, `sessionManager.js`  
+**Contribution notes:** Core screenshot logic; test on multiple platforms when modifying
+
+#### `tools/screenshot/fastCapture.js`
+**Primary purpose:** Cross-platform screen capture with multiple fallback methods  
+**Process context:** Main process  
+**Key responsibilities:** Tries RobotJS first, falls back to screenshot-desktop, handles different image formats  
+**Contribution notes:** Add new capture methods here; ensure proper error handling for missing dependencies
+
+#### `tools/screenshot/fastCompress.js`
+**Primary purpose:** Image compression and optimization using Sharp  
+**Process context:** Main process  
+**Key responsibilities:** Compresses BGRA/PNG images, applies color quantization, resizes for optimal model input  
+**Dependencies:** `sharp` library  
+**Contribution notes:** Adjust compression settings here for quality vs. speed tradeoffs
+
+### 🔴 Overlay Tool (`tools/overlay/`)
+
+#### `tools/overlay/index.js`
+**Primary purpose:** Overlay arrow tool module entry point  
+**Process context:** Main process  
+**Key responsibilities:** Exports tool schema and executor for placing precision arrows on screen
+
+#### `tools/overlay/schema.js`
+**Primary purpose:** OpenAI function calling schema for arrow overlays  
+**Process context:** Configuration  
+**Key responsibilities:** Defines vision model selection, target descriptions, and positioning parameters  
+**Contribution notes:** Modify to add new vision models or overlay options
+
+#### `tools/overlay/execute.js`
+**Primary purpose:** Arrow overlay placement with computer vision integration  
+**Process context:** Main process  
+**Key responsibilities:** Coordinates vision models, calculates arrow positions, creates overlay windows, manages cleanup  
+**Dependencies:** `uground_api.js`, `groundingdino_api.js`, `utils.js`  
+**Contribution notes:** Core overlay logic; handles both UI and object detection workflows
+
+#### `tools/overlay/utils.js`
+**Primary purpose:** Shared utilities for coordinate transformations and arrow direction logic  
+**Process context:** Main process (shared)  
+**Key responsibilities:** Determines arrow directions, converts coordinate systems, handles screen-to-pixel mapping  
+**Contribution notes:** Centralized math functions; test coordinate accuracy when modifying
+
+#### `tools/overlay/uground_api.js`
+**Primary purpose:** UGround vision model integration for UI element detection  
+**Process context:** Main process  
+**Key responsibilities:** Uploads images to GCS, calls Hugging Face API, parses coordinates, handles UI element detection  
+**Dependencies:** `gcs_upload_and_sign.js`  
+**Contribution notes:** Handles UI element detection; requires HF_ENDPOINT and HF_TOKEN configuration
+
+#### `tools/overlay/groundingdino_api.js`
+**Primary purpose:** Grounding DINO model integration for real-world object detection  
+**Process context:** Main process  
+**Key responsibilities:** Uses Replicate API for object detection, filters results by screen area, returns object centers  
+**Dependencies:** `gcs_upload_and_sign.js`, Replicate API  
+**Contribution notes:** Handles real-world object detection; requires REPLICATE_API_TOKEN
+
+#### `tools/overlay/gcs_upload_and_sign.js`
+**Primary purpose:** Google Cloud Storage integration for secure image uploads  
+**Process context:** Main process  
+**Key responsibilities:** Uploads screenshots to GCS, generates signed URLs, handles authentication  
+**Dependencies:** `@google-cloud/storage`  
+**Contribution notes:** Critical for vision model access; requires proper GCS configuration
+
+#### `tools/overlay_context.js`
+**Primary purpose:** Simple state management for screenshot metadata  
+**Process context:** Main process (shared)  
+**Key responsibilities:** Stores and retrieves last screenshot information for overlay calculations  
+**Contribution notes:** Lightweight state store; expand carefully to avoid memory leaks
+
+### 📂 Data Directories
+
+#### `screenshots_seen/`
+**Primary purpose:** Organized storage of captured screenshots by conversation session  
+**Process context:** File system  
+**Key responsibilities:** Contains timestamped session folders with PNG screenshot files  
+**Contribution notes:** Auto-generated by sessionManager; safe to delete for cleanup
+
+#### `node_modules/`
+**Primary purpose:** NPM dependency storage (auto-generated)  
+**Process context:** Build/runtime  
+**Key responsibilities:** Contains all installed package dependencies  
+**Contribution notes:** Never commit to version control; use `npm install` to regenerate
+
+### ⚙️ Configuration Files
+
+#### `.env`
+**Primary purpose:** Environment variables and API keys (not tracked in git)  
+**Process context:** Configuration  
+**Key responsibilities:** Stores sensitive API keys, model endpoints, and configuration options  
+**Contribution notes:** Required for application functionality; never commit to version control
+
+#### `.gitignore`
+**Primary purpose:** Git ignore patterns for sensitive and generated files  
+**Process context:** Version control  
+**Key responsibilities:** Excludes node_modules, .env, logs, and screenshot directories from git  
+**Contribution notes:** Add new sensitive or generated file patterns here
+
+#### `gcs_key.json`
+**Primary purpose:** Google Cloud Service Account credentials (not tracked in git)  
+**Process context:** Configuration  
+**Key responsibilities:** Contains GCS authentication credentials for image uploads  
+**Contribution notes:** Alternative to GCS_KEY_BASE64; never commit to version control
+
+## 🛠️ Development
+
+### Adding New Tools
+
+1. Create a new directory in `tools/`
+2. Add `index.js`, `schema.js`, and `execute.js` files
+3. Register the tool in `tools/index.js`
+4. Define the OpenAI function schema
+5. Implement the execution logic
+
+### Vision Model Integration
+
+- **UGround**: Best for UI elements (buttons, menus, text fields)
+- **Grounding DINO**: Best for real-world objects (people, animals, objects)
+- Add new models by creating new API integration files in `tools/overlay/`
+
+### Testing
+
+- Test on multiple platforms (Windows, macOS, Linux)
+- Verify screenshot capture works with different screen configurations
+- Test voice connection with various microphone setups
+- Validate overlay accuracy with different vision models
+
+## 🤝 Contributing
+
+1. **Fork the repository** and create a feature branch
+2. **Test thoroughly** on your platform before submitting
+3. **Follow the existing architecture** - separate concerns between main and renderer processes
+4. **Update documentation** when adding new features or tools
+5. **Ensure security** - never expose sensitive APIs directly to renderer process
+6. **Submit pull requests** with clear descriptions and testing notes
+
+### Common Contribution Areas
+
+- **New vision models** - Add integrations for additional computer vision APIs
+- **Cross-platform improvements** - Enhance compatibility across operating systems  
+- **UI enhancements** - Improve the renderer interface and user experience
+- **Performance optimizations** - Reduce screenshot capture time or overlay placement latency
+- **Tool extensions** - Add new capabilities like mouse control or text recognition
+
+## 📋 Troubleshooting
+
+### Common Issues
+
+- **"No capture methods available"** - Install RobotJS or screenshot-desktop: `npm install robotjs screenshot-desktop`
+- **Vision model errors** - Check your HF_ENDPOINT and GCS_BUCKET configuration in `.env`
+- **Voice connection fails** - Verify your OPENAI_API_KEY has Realtime API access
+- **Overlay arrows don't appear** - Ensure proper screen permissions on macOS/Linux
+
+### Platform-Specific Notes
+
+- **macOS**: May require Screen Recording permissions in System Preferences
+- **Linux**: RobotJS might need additional system dependencies
+- **Windows**: Should work out of the box with proper Node.js installation
 
 ---
 
-## 🎯 Key Features
-
-### Real-Time Voice Interaction
-- **Natural Conversation**: Speak normally, AI responds when you pause
-- **WebRTC Audio**: High-quality, low-latency voice communication
-- **Context Awareness**: AI remembers conversation history and visual context
-
-### Visual Screen Understanding
-- **Proactive Screenshots**: AI automatically captures screen when helpful
-- **Intelligent Analysis**: Reads text, describes UI, identifies problems
-- **Multi-Format Support**: Optimized for both analysis and transmission
-
-### Precise UI Guidance
-- **AI-Powered Detection**: Uses advanced computer vision (UGround-V1-2B) for element location
-- **High Accuracy**: Vision model specifically trained for UI element detection
-- **Smart Positioning**: Automatic arrow direction and placement based on element position
-- **Invisible Process**: Technical complexity hidden from user
-- **Multi-Display Support**: Works across multiple monitors
-
-### Performance Optimization
-- **Fast Capture**: Sub-100ms screenshot times with native methods
-- **Smart Compression**: Adaptive quality based on content and size targets  
-- **Efficient Transmission**: Palette-compressed images for WebRTC
-- **Minimal Resource Usage**: Lightweight overlay system with auto-cleanup
-
----
-
-## 🔒 Privacy & Security
-
-- **Local Processing**: Screenshots stored locally, never uploaded
-- **Secure Communication**: All API communication uses HTTPS/WSS
-- **Ephemeral Sessions**: OpenAI session tokens are temporary
-- **Context Isolation**: Electron security model prevents unauthorized access
-- **Private Storage**: Screenshot archive remains on local machine
-
----
-
-## 🛠️ Technical Notes
-
-### Supported Platforms
-- **Windows**: Full support with RobotJS and screenshot-desktop
-- **macOS**: Full support (may require accessibility permissions)
-- **Linux**: Full support on X11/Wayland systems
-
-### Performance Characteristics
-- **Screenshot Capture**: ~50-150ms depending on method and resolution
-- **Image Compression**: ~100-300ms for WebRTC optimization
-- **Voice Latency**: ~200-500ms round-trip with OpenAI Realtime API
-- **Memory Usage**: ~50-100MB typical, spikes during image processing
-
-### Troubleshooting
-- **RobotJS Issues**: Run `npm run rebuild` to recompile native modules
-- **Permission Errors**: Grant accessibility/screen recording permissions on macOS
-- **Audio Problems**: Check microphone permissions and default device settings
-- **API Errors**: Verify OpenAI API key and Realtime API access
-
----
-
-This AI voice assistant represents a new paradigm in human-computer interaction, combining the naturalness of voice communication with the precision of visual understanding and screen manipulation. The modular architecture ensures extensibility while maintaining performance and security.
+**Built with ❤️ using Electron.js, OpenAI Realtime API, and advanced computer vision models.**

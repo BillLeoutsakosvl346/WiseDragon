@@ -7,21 +7,14 @@ const { adaptiveCompress } = require('./fastCompress');
 const sessionManager = require('../sessionManager');
 
 async function execute(args) {
-  const start = performance.now();
   console.log('📸 Fast screenshot capture');
   
   try {
     // Step 1: Capture
-    const captureStart = performance.now();
     const frameData = await quickCapture();
-    const captureTime = performance.now() - captureStart;
-    console.log(`📷 Capture step: ${captureTime.toFixed(0)}ms`);
     
     // Step 2: Compress  
-    const compressStart = performance.now();
     const compressed = await adaptiveCompress(frameData, 150);
-    const compressTime = performance.now() - compressStart;
-    console.log(`🎨 Compression step: ${compressTime.toFixed(0)}ms`);
     
     // Get metadata and save
     const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -43,8 +36,7 @@ async function execute(args) {
       path: filePath
     });
     
-    const totalTime = performance.now() - start;
-    console.log(`📸 Screenshot: ${width}×${height}, ${(compressed.size/1000).toFixed(0)}KB, ${totalTime.toFixed(0)}ms`);
+    console.log(`📸 Screenshot: ${width}×${height}, ${(compressed.size/1000).toFixed(0)}KB`);
     console.log(`📤 Ready for model: ${frameData.method} capture`);
     
     return {
@@ -61,8 +53,7 @@ async function execute(args) {
     };
     
   } catch (error) {
-    const totalTime = performance.now() - start;
-    console.error(`❌ Screenshot failed after ${totalTime.toFixed(0)}ms:`, error.message);
+    console.error(`❌ Screenshot failed:`, error.message);
     return { success: false, error: error.message };
   }
 }

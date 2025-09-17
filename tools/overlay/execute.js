@@ -25,7 +25,7 @@ function getArrowTipOffset(direction, size = 150) {
   return offsets[direction] || { x: 0, y: 0 };
 }
 
-function createOverlayHTML(dir, targetX, targetY, color = 'black', opacity = 0.95) {
+function createOverlayHTML(dir, targetX, targetY, color = '#D4AF37', opacity = 0.7) {
   const size = 150;
   const rotations = { right: 0, down: 90, left: 180, up: 270 };
   const offset = getArrowTipOffset(dir, size);
@@ -33,14 +33,79 @@ function createOverlayHTML(dir, targetX, targetY, color = 'black', opacity = 0.9
   const centerY = targetY + offset.y;
   
   return `<!doctype html><meta charset="utf-8">
-<style>html,body{margin:0;height:100%;background:transparent}#root{position:fixed;inset:0;pointer-events:none}.shape{position:absolute;transform:translate(-50%,-50%)}svg.arrow{display:block;overflow:visible}</style>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+  }
+  
+  #root {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  
+  .arrow-container {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    backdrop-filter: blur(2px);
+    border-radius: 20px;
+    padding: 10px;
+  }
+  
+  svg.arrow {
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 30px rgba(212, 175, 55, 0.6));
+    animation: arrowPulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes arrowPulse {
+    0%, 100% { 
+      filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 30px rgba(212, 175, 55, 0.6));
+      transform: scale(1);
+    }
+    50% { 
+      filter: drop-shadow(0 0 25px rgba(255, 215, 0, 1)) drop-shadow(0 0 50px rgba(212, 175, 55, 0.8));
+      transform: scale(1.05);
+    }
+  }
+  
+  .arrow-shaft {
+    stroke: url(#goldGradient);
+    stroke-width: 8;
+    stroke-linecap: round;
+    fill: none;
+  }
+  
+  .arrow-head {
+    fill: url(#goldGradient);
+    stroke: url(#goldGradient);
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+</style>
 <div id="root">
-  <svg class="shape arrow" width="${size}" height="${size}" style="left:${centerX}px;top:${centerY}px;opacity:${opacity};transform:translate(-50%,-50%) rotate(${rotations[dir] || 0}deg)">
-    <g stroke="${color}" stroke-width="${Math.max(4, size * 0.08)}" fill="${color}">
-      <line x1="${size * 0.15}" y1="${size * 0.5}" x2="${size * 0.75}" y2="${size * 0.5}"/>
-      <polygon points="${size * 0.85},${size * 0.5} ${size * 0.65},${size * 0.3} ${size * 0.65},${size * 0.7}"/>
-    </g>
-  </svg>
+  <div class="arrow-container" style="left:${centerX}px;top:${centerY}px;opacity:${opacity};transform:translate(-50%,-50%) rotate(${rotations[dir] || 0}deg)">
+    <svg class="arrow" width="${size}" height="${size}">
+      <defs>
+        <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"  style="stop-color:#FFD700"/>
+          <stop offset="50%" style="stop-color:#D4AF37"/>
+          <stop offset="100%" style="stop-color:#B8941F"/>
+        </linearGradient>
+      </defs>
+      
+      <!-- Simple arrow line -->
+      <line x1="${size * 0.05}" y1="${size * 0.50}" x2="${size * 0.75}" y2="${size * 0.50}"
+            stroke="#D4AF37" stroke-width="6" stroke-linecap="round"/>
+      
+      <!-- Simple arrow head -->
+      <polygon points="${size * 0.85},${size * 0.5} ${size * 0.70},${size * 0.35} ${size * 0.70},${size * 0.65}"
+               fill="#D4AF37" stroke="#D4AF37" stroke-width="1" stroke-linejoin="round"/>
+    </svg>
+  </div>
 </div>`;
 }
 
@@ -124,8 +189,8 @@ async function execute(args) {
       description, 
       vision_model = 'uground', 
       target_area, 
-      color = 'black', 
-      opacity = 0.95, 
+      color = '#D4AF37', 
+      opacity = 0.7, 
       duration_ms = 8000 
     } = args;
     

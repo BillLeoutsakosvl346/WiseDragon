@@ -1,48 +1,57 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Realtime Voice (Minimal)</title>
-<style>
-  body {
-    font-family: system-ui, -apple-system, sans-serif;
-    margin: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-  }
-  .controls {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-  #agent-view {
-    max-width: 800px;
-    max-height: 600px;
-    border: 2px solid #ccc;
-    border-radius: 8px;
-    display: none;
-  }
-  #agent-view.visible {
-    display: block;
-  }
-  .image-info {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-  }
-</style>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WiseDragon - AI Desktop Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
 <body>
-  <div class="controls">
-    <button id="connect">Connect</button>
-    <button id="disconnect" disabled>Disconnect</button>
-    <p id="status">Idle.</p>
+  <!-- App Header with Logo and Title -->
+  <header class="app-header">
+    <div class="logo-container">
+      <div class="logo">
+        <img src="media/logo.png" alt="WiseDragon Logo" />
+      </div>
+      <div class="sparkle"></div>
+      <div class="sparkle"></div>
+      <div class="sparkle"></div>
+      <div class="sparkle"></div>
+      <div class="sparkle"></div>
+      <div class="sparkle"></div>
+    </div>
+    <h1 class="app-title">WISEDRAGON</h1>
+    <p class="app-subtitle">AI-Powered Desktop Assistant</p>
+    <p class="call-to-action">Ask me anything and I will guide you</p>
+  </header>
+
+  <!-- Main Application Content -->
+  <main class="main-content">
+    <!-- Control Panel -->
+    <section class="controls">
+      <div class="button-group">
+        <button id="connect" class="control-button">Connect</button>
+        <button id="disconnect" class="control-button" disabled>Disconnect</button>
+      </div>
+      <div id="status" class="status-display">Idle.</div>
+    </section>
+
+    <!-- Vision Display Area -->
+    <section class="vision-area">
+      <img id="agent-view" alt="Agent's current view" />
+      <div id="image-info" class="image-info"></div>
+    </section>
+  </main>
+
+  <!-- Golden Glow Effect -->
+  <div class="golden-glow-container">
+    <div class="uniform-glow"></div>
   </div>
-  
-  <div>
-    <img id="agent-view" alt="Agent's current view" />
-    <div id="image-info" class="image-info"></div>
-  </div>
-  
+
+  <!-- Audio Element for Assistant Voice -->
   <audio id="assistant" autoplay></audio>
+  
+  <!-- Application JavaScript -->
   <script src="renderer.js"></script>
 </body>
+</html>

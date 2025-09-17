@@ -8,7 +8,7 @@
 module.exports = {
   type: "function",
   name: "show_arrow_overlay",
-  description: "Point an arrow at an element on screen. Choose the right vision model: UGround for UI elements (buttons, menus, text fields), Grounding DINO for real-world objects (animals, buildings, people, etc.).",
+  description: "IMMEDIATELY show a golden arrow pointing at any screen element when the user needs guidance. The arrow is completely click-through - users can click directly on targets without the arrow interfering. Arrow stays visible until user clicks or scrolls anywhere on screen (global detection). Use proactively for questions like 'where is...', 'show me...', 'help me find...', 'click on...', 'how do I...' etc. Choose UGround for UI elements (buttons, menus, text fields), Grounding DINO for real-world objects (animals, buildings, people, etc.). Essential for screen guidance.",
   parameters: {
     type: "object",
     properties: {

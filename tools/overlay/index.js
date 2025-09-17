@@ -6,9 +6,10 @@
  */
 
 const schema = require('./schema');
-const { execute } = require('./execute');
+const { execute, cleanupOverlays } = require('./execute');
 
 module.exports = {
   schema,
-  executor: execute
+  executor: execute,
+  cleanupOverlays
 };

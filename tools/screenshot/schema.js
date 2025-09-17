@@ -8,7 +8,7 @@
 module.exports = {
   type: "function",
   name: "take_screenshot", 
-  description: "Take a screenshot to see the user's screen",
+  description: "IMMEDIATELY take a FRESH screenshot to see what's currently on the user's screen. Users change screens constantly - NEVER rely on previous screenshots. Use this proactively for ANY screen-related question and whenever you suspect the screen might have changed. If user asks 'do you see my screen now?' multiple times, take a new screenshot each time. Be extremely willing to use this tool liberally - essential for accurate guidance.",
   parameters: {
     type: "object",
     properties: {},

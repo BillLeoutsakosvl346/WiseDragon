@@ -4,6 +4,8 @@
 
 WiseDragon is an Electron.js desktop application that combines OpenAI's Realtime API with computer vision to create an intelligent assistant that can see your screen, understand voice commands, and provide visual feedback through overlays. The application uses advanced AI models to identify UI elements and objects on screen, then points to them with precision-placed arrows.
 
+**Features a stunning luxury black and gold interface** with animated logos, mystical background effects, and smooth golden glow animations that create an awe-inspiring user experience befitting an AI-powered assistant.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -70,9 +72,11 @@ WiseDragon follows the standard **Electron.js architecture** with clear separati
 
 ### Renderer Process (`renderer/`)
 - **WebRTC voice communication** - Real-time audio streaming with OpenAI's voice model
-- **User interface controls** - Connect/disconnect buttons, status display, image preview
+- **Luxury UI interface** - Black and gold themed design with animated logo, sparkle effects, and golden glow
+- **User interface controls** - Elegant connect/disconnect buttons, status display, image preview
 - **Function call handling** - Processes AI tool requests and displays visual feedback
 - **Screen interaction visualization** - Shows screenshots and overlay results to user
+- **Visual effects** - Animated dragon logo with orbital rings, pulsing golden glow from screen bottom, mystical background
 
 ### Preload Script (`preload.js`)
 - **Secure API exposure** - Uses `contextBridge` to safely expose main process functions
@@ -92,6 +96,28 @@ The application uses a **modular tool architecture** where AI can execute specif
 3. **Vision Model Processing** - UGround for UI elements, Grounding DINO for real objects
 4. **Coordinate Mapping** - Precise pixel coordinate calculation and arrow placement
 5. **Overlay Rendering** - SVG-based arrows with automatic positioning and cleanup
+
+## 🎨 User Interface & Visual Design
+
+WiseDragon features a **luxury black and gold themed interface** designed to inspire awe and prestige:
+
+### **Visual Elements**
+- **Animated Dragon Logo** - 200px golden logo with intense shine animation that pulses every 4 seconds
+- **Orbital Rings** - Two rotating rings around the logo with golden gradients and synchronized glow effects  
+- **Sparkle Effects** - Six floating sparkles positioned around the logo with staggered animations
+- **Mystical Background** - Blurred dragon imagery with darkening overlay for atmospheric depth
+- **Golden Glow Effect** - Uniform golden light emanating from the bottom screen edge with bright corners
+
+### **Interactive Elements**
+- **Elegant Buttons** - Golden gradient connect button and outline disconnect button with hover effects
+- **Smooth Animations** - Fade-in effects, shimmer text, pulsing status displays, and breathing glow
+- **Responsive Layout** - Clean vertical layout with buttons above status, mobile-optimized design
+- **Professional Typography** - Cinzel serif for titles, Inter for UI elements with golden color scheme
+
+### **Technical Implementation**
+- **CSS Animations** - Hardware-accelerated transforms and opacity changes for 60fps performance
+- **Responsive Design** - Adapts to different screen sizes while maintaining visual impact
+- **Optimized Rendering** - Efficient CSS with consolidated animations and minimal DOM elements
 
 ## 📁 File Structure
 
@@ -119,10 +145,10 @@ The application uses a **modular tool architecture** where AI can execute specif
 ### 🔵 Renderer Process Files
 
 #### `renderer/index.html`
-**Primary purpose:** User interface structure and styling  
+**Primary purpose:** User interface structure with luxury black and gold theme  
 **Process context:** Renderer process  
-**Key responsibilities:** Defines UI layout, contains embedded styles, loads renderer JavaScript  
-**Contribution notes:** Modify for UI changes; keep styling simple for faster loading
+**Key responsibilities:** Defines semantic HTML structure, loads custom CSS and media assets, implements dragon logo with sparkle effects  
+**Contribution notes:** Contains clean HTML5 structure for animated logo, golden glow effects, and responsive layout
 
 #### `renderer/renderer.js`
 **Primary purpose:** Frontend application logic and WebRTC voice communication  
@@ -130,6 +156,18 @@ The application uses a **modular tool architecture** where AI can execute specif
 **Key responsibilities:** Manages voice connection to OpenAI, handles function call execution, displays visual feedback  
 **Dependencies:** Uses APIs exposed by `preload.js`  
 **Contribution notes:** Core file for UI interactions and voice handling; test thoroughly after changes
+
+#### `renderer/styles.css`
+**Primary purpose:** Complete visual styling system with luxury animations and effects  
+**Process context:** Renderer process  
+**Key responsibilities:** Implements black & gold theme, logo shine animations, orbital rings, sparkle effects, golden glow, and responsive design  
+**Contribution notes:** Contains optimized CSS animations and visual effects; modify here for UI appearance changes
+
+#### `renderer/media/`
+**Primary purpose:** Visual assets for the luxury interface  
+**Process context:** Static assets  
+**Key responsibilities:** Contains logo.png (golden dragon) and background.png (mystical dragon background)  
+**Contribution notes:** Replace images here for visual rebranding; ensure proper sizing for performance
 
 ### 🟡 Tool System Files
 

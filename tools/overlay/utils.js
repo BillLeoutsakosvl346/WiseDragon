@@ -1,5 +1,5 @@
 /**
- * Shared utilities for overlay system
+ * Overlay Utilities - Coordinate transformations and arrow logic
  */
 
 /**

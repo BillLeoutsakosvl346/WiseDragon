@@ -1,5 +1,6 @@
 /**
  * Arrow Renderer - Handles arrow HTML generation and visual styling
+ * Responsible for creating golden arrows that point to UI elements
  */
 
 /**

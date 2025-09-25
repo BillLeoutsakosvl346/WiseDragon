@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getTimestamp } = require('../utils/logger');
 
 class SessionManager {
   constructor() {
@@ -49,7 +50,7 @@ class SessionManager {
       screenshotCount: 0
     };
 
-    console.log(`📁 New session started: ${sessionFolder}`);
+    console.log(`[${getTimestamp()}] 📁 New session started: ${sessionFolder}`);
     return this.currentSession;
   }
 
@@ -94,7 +95,7 @@ class SessionManager {
   endSession() {
     if (this.currentSession) {
       const stats = this.getSessionStats();
-      console.log(`📁 Session ended: ${stats.folder} (${stats.screenshotCount} screenshots, ${Math.round(stats.duration/1000)}s)`);
+      console.log(`[${getTimestamp()}] 📁 Session ended: ${stats.folder} (${stats.screenshotCount} screenshots, ${Math.round(stats.duration/1000)}s)`);
       this.currentSession = null;
       return stats;
     }

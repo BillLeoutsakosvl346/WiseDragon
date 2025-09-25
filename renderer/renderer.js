@@ -56,7 +56,7 @@ async function start() {
     await pc.setRemoteDescription(answer);
     
   } catch (error) {
-    console.error('Connection failed:', error.message);
+    console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] Connection failed:`, error.message);
     status(`Connection failed: ${error.message}`);
     btnConn.disabled = false;
   }
@@ -217,10 +217,32 @@ function setupDataChannelHandlers() {
     const data = JSON.parse(event.data);
     handleRealtimeEvent(data);
   };
-  dataChannel.onerror = (error) => console.error('Data channel error:', error);
+  
+  dataChannel.onerror = (error) => {
+    const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+    console.error(`[${timestamp}] Data channel error:`, error);
+    console.error(`[${timestamp}] 📡 WebRTC data channel failed - large image may have exceeded limits`);
+  };
+  
   dataChannel.onclose = () => {
+    const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+    console.log(`[${timestamp}] 📡 WebRTC data channel closed`);
     dataChannel = null;
   };
+  
+  // Add buffer state monitoring
+  Object.defineProperty(dataChannel, 'bufferedAmount', {
+    get: function() {
+      return this._bufferedAmount || 0;
+    },
+    set: function(value) {
+      this._bufferedAmount = value;
+      if (value > 100000) { // 100KB buffer warning
+        const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+        console.warn(`[${timestamp}] ⚠️  WebRTC buffer high: ${Math.round(value/1024)}KB - large image transmission`);
+      }
+    }
+  });
 }
 
 function handleRealtimeEvent(event) {
@@ -234,7 +256,7 @@ function handleRealtimeEvent(event) {
     clearFunctionCallsForResponse(event.response.id);
   }
   else if (event.type.startsWith('error')) {
-    console.error('Error event:', event.type, event.error);
+    console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] Error event:`, event.type, event.error);
   }
 }
 

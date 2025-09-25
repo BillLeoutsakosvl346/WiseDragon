@@ -1,10 +1,12 @@
 /**
  * Overlay Manager - Handles overlay window creation and lifecycle
+ * Manages golden arrow overlays that appear on top of the screen
  */
 
 const { BrowserWindow, screen, app } = require('electron');
 const { createArrowHTML } = require('./arrow-renderer');
 const { startGlobalInputDetection, stopGlobalInputDetection } = require('./global-input-detector');
+const { getTimestamp } = require('../../../utils/logger');
 
 // Keep track of overlay windows
 let overlays = [];
@@ -38,7 +40,7 @@ function createOverlayWindow(display, htmlContent) {
 
   // Handle window close event
   win.on('closed', () => {
-    console.log('🗯️ Arrow overlay window closed');
+    console.log(`[${getTimestamp()}] 🗯️ Arrow overlay window closed`);
     // Remove from overlays array
     const index = overlays.indexOf(win);
     if (index > -1) {
@@ -67,7 +69,7 @@ function showArrowOverlay(direction, targetX, targetY, displayBounds, options = 
   const targetLocalX = targetX - displayBounds.x;
   const targetLocalY = targetY - displayBounds.y;
 
-  console.log(`🏹 Placing ${direction} arrow pointing to screen (${targetX}, ${targetY}) -> local (${targetLocalX}, ${targetLocalY})`);
+  console.log(`[${getTimestamp()}] 🏹 Placing ${direction} arrow pointing to screen (${targetX}, ${targetY}) -> local (${targetLocalX}, ${targetLocalY})`);
 
   // Create arrow HTML
   const htmlContent = createArrowHTML(direction, targetLocalX, targetLocalY, color, opacity);
@@ -83,7 +85,7 @@ function showArrowOverlay(direction, targetX, targetY, displayBounds, options = 
   if (overlays.length === 1) {
     startGlobalInputDetection(() => {
       if (overlays.length > 0) {
-        console.log('🧹 Cleaning up arrows due to user interaction');
+        console.log(`[${getTimestamp()}] 🧹 Cleaning up arrows due to user interaction`);
         cleanupAllOverlays();
       }
     });
@@ -96,7 +98,7 @@ function showArrowOverlay(direction, targetX, targetY, displayBounds, options = 
  * Clean up all overlay windows
  */
 function cleanupAllOverlays() {
-  console.log('🧹 Cleaning up all arrow overlays...');
+  console.log(`[${getTimestamp()}] 🧹 Cleaning up all arrow overlays...`);
   
   overlays.forEach(win => {
     if (win && !win.isDestroyed()) {

@@ -1,18 +1,20 @@
 /**
  * Arrow Overlay Execute - Main orchestration logic
+ * Coordinates screenshot capture, vision processing, and arrow display
  */
 
-const { screen } = require('electron');
-const { locateElement } = require('./uground_api');
+const { locateElement } = require('./apis/uground_api');
 const { determineDirection, coordsToNorm, normToScreen } = require('./utils');
-const { showArrowOverlay, cleanupAllOverlays } = require('./overlay-manager');
-const { getLastScreenshot } = require('../overlay_context');
+const { showArrowOverlay, cleanupAllOverlays } = require('./ui/overlay-manager');
+const { logArrowPlacement, startTiming, logTiming } = require('../../utils/logger');
 const screenshotTool = require('../screenshot');
 
 /**
  * Main execution function - orchestrates screenshot, vision processing, and arrow display
  */
 async function execute(args) {
+  const totalStartTime = startTiming('Complete arrow overlay execution');
+  
   try {
     const { 
       description, 
@@ -22,43 +24,51 @@ async function execute(args) {
       opacity = 0.7
     } = args;
     
-    console.log(`🎯 Arrow overlay requested: "${description}" using ${vision_model}`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}] 🎯 ARROW OVERLAY REQUEST`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    📋 Description: "${description}"`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    🤖 Vision model: ${vision_model.toUpperCase()}`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    📍 Target area: ${target_area || 'any'}`);
     
     // Clean up any existing overlays first
     cleanupAllOverlays();
 
-    // Get current screenshot or take a fresh one
-    let screenshot = getLastScreenshot();
+    // Always take a fresh screenshot using the existing screenshot tool (dual-path)
+    const screenshotStartTime = Date.now();
+    const screenshotResult = await screenshotTool.executor({});
+    logTiming('Screenshot capture', screenshotStartTime);
     
-    if (!screenshot || !screenshot.path) {
-      console.log('📷 No current screenshot available, taking a fresh one...');
-      // Use existing screenshot tool to take a new screenshot
-      const screenshotResult = await screenshotTool.executor({});
-      
-      if (!screenshotResult.success) {
-        return {
-          success: false,
-          error: `Failed to take screenshot: ${screenshotResult.error}`,
-          description
-        };
-      }
-      
-      screenshot = {
-        path: screenshotResult.path,
-        buffer: screenshotResult.buffer,
-        displayBounds: screenshotResult.displayBounds,
-        imageW: screenshotResult.width,
-        imageH: screenshotResult.height
+    if (!screenshotResult.success) {
+      return {
+        success: false,
+        error: `Failed to take screenshot: ${screenshotResult.error}`,
+        description
       };
-    } else {
-      console.log(`📷 Using current screenshot: ${screenshot.path}`);
     }
+    
+    const screenshot = {
+      path: screenshotResult.lastScreenshotMeta.path,  // Single unified path
+      buffer: screenshotResult.image ? Buffer.from(screenshotResult.image, 'base64') : null,
+      displayBounds: screenshotResult.lastScreenshotMeta.displayBounds,
+      imageW: screenshotResult.lastScreenshotMeta.imageW,   // Unified dimensions
+      imageH: screenshotResult.lastScreenshotMeta.imageH
+    };
+    
+    // Log unified format details
+    console.log(`[${require('../../utils/logger').getTimestamp()}] 📐 UNIFIED SCREENSHOT DEBUG:`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    🖥️  Actual screen: ${screenshot.displayBounds.width}x${screenshot.displayBounds.height}`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    🎨 Universal image: ${screenshot.imageW}x${screenshot.imageH} (64-color PNG)`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    📁 File: ${require('path').basename(screenshot.path)}`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    📡 WebRTC-optimized: 1366x768 for realtime API compatibility`);
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    📤 Used by: Realtime GPT + UGround (Modal) + DINO (Replicate)`);
+    
+    // Coordinates need to be scaled from 1366x768 to actual screen resolution
+    console.log(`[${require('../../utils/logger').getTimestamp()}]    ✅ Standard 1366x768 - coordinates will be scaled to screen resolution`);
 
     // Process with appropriate vision model
     const visionResult = await processWithVisionModel(screenshot, description, vision_model, target_area);
     
     if (!visionResult.success) {
-      console.error('🔴 Vision service failed:', visionResult.error);
+      console.error(`[${require('../../utils/logger').getTimestamp()}] 🔴 Vision service failed:`, visionResult.error);
       return {
         success: false,
         error: `Vision service failed: ${visionResult.error}`,
@@ -71,13 +81,19 @@ async function execute(args) {
     const { x_norm, y_norm } = coordsToNorm(coordinates.percent.x, coordinates.percent.y);
     const { x: screenX, y: screenY } = normToScreen(x_norm, y_norm, screenshot.displayBounds);
 
+    // Log detailed arrow placement info
+    logArrowPlacement(direction, { x: screenX, y: screenY }, { x: screenX - screenshot.displayBounds.x, y: screenY - screenshot.displayBounds.y }, description);
+
     // Show the arrow overlay
+    const overlayStartTime = Date.now();
     const overlay = showArrowOverlay(direction, screenX, screenY, screenshot.displayBounds, { color, opacity });
+    logTiming('Arrow overlay creation', overlayStartTime);
 
     // Convert screenshot to base64 if buffer is available
     const base64Image = screenshot.buffer ? screenshot.buffer.toString('base64') : null;
     
-    console.log(`✅ Arrow overlay successful: ${direction} arrow pointing to "${description}"`);
+    logTiming('Complete arrow overlay execution', totalStartTime);
+    console.log(`[${require('../../utils/logger').getTimestamp()}] ✅ ARROW OVERLAY SUCCESS: ${direction.toUpperCase()} arrow placed`);
     
     return {
       success: true,
@@ -104,7 +120,8 @@ async function execute(args) {
     };
 
   } catch (error) {
-    console.error('🔴 Overlay arrow failed:', error.message);
+    console.error(`[${require('../../utils/logger').getTimestamp()}] 🔴 OVERLAY ARROW FAILED:`, error.message);
+    logTiming('Complete arrow overlay execution (FAILED)', totalStartTime);
     cleanupAllOverlays();
     
     return {
@@ -120,8 +137,9 @@ async function execute(args) {
  */
 async function processWithVisionModel(screenshot, description, visionModel, targetArea) {
   if (visionModel === 'grounding_dino') {
-    // Use Grounding DINO for real-world objects
-    const { detectObjectCenter } = require('./groundingdino_api');
+    // Use Replicate Grounding DINO for real-world objects
+    console.log(`[${require('../../utils/logger').getTimestamp()}] 🦕 Using Replicate Grounding DINO for object detection`);
+    const { detectObjectCenter } = require('./apis/groundingdino_api');
     const coords = await detectObjectCenter(screenshot.path, description, targetArea);
     
     if (coords.x === null || coords.y === null) {
@@ -153,7 +171,8 @@ async function processWithVisionModel(screenshot, description, visionModel, targ
       modelResponse: `Grounding DINO detected object at (${coords.x}, ${coords.y})`
     };
   } else {
-    // Use UGround for UI elements (default)
+    // Use Modal UGround for UI elements (default, SF optimized)
+    console.log(`[${require('../../utils/logger').getTimestamp()}] 🚀 Using Modal UGround for UI element detection`);
     return await locateElement(screenshot.path, description);
   }
 }

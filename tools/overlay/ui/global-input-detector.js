@@ -1,8 +1,10 @@
 /**
  * Global Input Detector - Handles system-wide click and scroll detection
+ * Uses uiohook-napi for cross-platform input detection
  */
 
 const { systemPreferences } = require('electron');
+const { getTimestamp } = require('../../../utils/logger');
 
 let globalInputHook = null;
 let fallbackTimeout = null;
@@ -14,7 +16,7 @@ function startGlobalInputDetection(onInteractionCallback) {
   // Clean up existing hook first
   stopGlobalInputDetection();
   
-  console.log('👁️ Setting up global input detection...');
+  console.log(`[${getTimestamp()}] 👁️ Setting up global input detection...`);
   
   try {
     // Try to load uiohook-napi for global input detection
@@ -25,15 +27,15 @@ function startGlobalInputDetection(onInteractionCallback) {
       // macOS: Check for Accessibility permission
       const trusted = systemPreferences.isTrustedAccessibilityClient(false);
       if (!trusted) {
-        console.log('🍎 macOS: Requesting Accessibility permission for global input detection...');
+        console.log(`[${getTimestamp()}] 🍎 macOS: Requesting Accessibility permission for global input detection...`);
         systemPreferences.isTrustedAccessibilityClient(true); // Prompts user
-        console.log('⚠️ Please grant Accessibility permission and restart the app for click detection to work');
+        console.log(`[${getTimestamp()}] ⚠️ Please grant Accessibility permission and restart the app for click detection to work`);
       }
     }
     
     // Check for Wayland on Linux (not supported)
     if (process.platform === 'linux' && process.env.XDG_SESSION_TYPE === 'wayland') {
-      console.warn('⚠️ Wayland detected - global input detection not supported. Using fallback timeout.');
+      console.warn(`[${getTimestamp()}] ⚠️ Wayland detected - global input detection not supported. Using fallback timeout.`);
       setupFallbackTimeout(onInteractionCallback);
       return;
     }
@@ -46,7 +48,7 @@ function startGlobalInputDetection(onInteractionCallback) {
       const now = Date.now();
       if (now - lastInteraction > DEBOUNCE_MS) {
         lastInteraction = now;
-        console.log('🖱️ Global interaction detected');
+        console.log(`[${getTimestamp()}] 🖱️ Global interaction detected`);
         onInteractionCallback();
       }
     };
@@ -66,16 +68,16 @@ function startGlobalInputDetection(onInteractionCallback) {
           uIOhook.removeAllListeners('wheel');
           uIOhook.stop();
         } catch (error) {
-          console.log('Note: Error stopping uIOhook (this is normal):', error.message);
+          console.log(`[${getTimestamp()}] Note: Error stopping uIOhook (this is normal):`, error.message);
         }
       }
     };
     
-    console.log('✅ Global input detection active');
+    console.log(`[${getTimestamp()}] ✅ Global input detection active`);
     
   } catch (error) {
-    console.log('⚠️ uiohook-napi not available, using fallback timeout:', error.message);
-    console.log('💡 Install with: npm install uiohook-napi && npx electron-rebuild -f -w uiohook-napi');
+    console.log(`[${getTimestamp()}] ⚠️ uiohook-napi not available, using fallback timeout:`, error.message);
+    console.log(`[${getTimestamp()}] 💡 Install with: npm install uiohook-napi && npx electron-rebuild -f -w uiohook-napi`);
     setupFallbackTimeout(onInteractionCallback);
   }
 }
@@ -87,9 +89,9 @@ function stopGlobalInputDetection() {
   if (globalInputHook && globalInputHook.supported) {
     try {
       globalInputHook.stop();
-      console.log('🛑 Global input hook stopped');
+      console.log(`[${getTimestamp()}] 🛑 Global input hook stopped`);
     } catch (error) {
-      console.log('Note: Error stopping global hook:', error.message);
+      console.log(`[${getTimestamp()}] Note: Error stopping global hook:`, error.message);
     }
   }
   globalInputHook = null;
@@ -105,9 +107,9 @@ function stopGlobalInputDetection() {
  * Setup fallback timeout for when global detection isn't available
  */
 function setupFallbackTimeout(onInteractionCallback) {
-  console.log('⏱️ Using fallback 10-second timeout');
+  console.log(`[${getTimestamp()}] ⏱️ Using fallback 10-second timeout`);
   fallbackTimeout = setTimeout(() => {
-    console.log('⏰ Arrow timeout cleanup (10s fallback)');
+    console.log(`[${getTimestamp()}] ⏰ Arrow timeout cleanup (10s fallback)`);
     onInteractionCallback();
   }, 10000);
 }

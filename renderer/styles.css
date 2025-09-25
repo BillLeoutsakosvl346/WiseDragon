@@ -31,9 +31,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;  /* Changed from center to flex-start */
   overflow-x: hidden;
   position: relative;
+  padding-top: 2rem;  /* Add top padding to move everything up */
 }
 
 body::before {
@@ -72,24 +73,24 @@ body::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;  /* Reduced from 3rem to 1.5rem */
   text-align: center;
   animation: fadeInDown 1s ease-out;
 }
 
 .logo-container {
   position: relative;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;  /* Reduced from 1.5rem to 1rem */
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 240px;
-  height: 240px;
+  width: 200px;  /* Reduced from 240px to 200px */
+  height: 200px; /* Reduced from 240px to 200px */
 }
 
 .logo {
-  width: 200px;
-  height: 200px;
+  width: 160px;  /* Reduced from 200px to 160px */
+  height: 160px; /* Reduced from 200px to 160px */
   border-radius: 50%;
   background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary), var(--gold-dark));
   padding: 5px;
@@ -117,8 +118,8 @@ body::after {
   position: absolute;
   top: 0;
   left: 0;
-  width: 240px;
-  height: 240px;
+  width: 200px;  /* Adjusted from 240px to match new container */
+  height: 200px; /* Adjusted from 240px to match new container */
   border: 3px solid transparent;
   border-top: 3px solid rgba(255, 215, 0, 0.7);
   border-right: 3px solid rgba(212, 175, 55, 0.4);
@@ -130,10 +131,10 @@ body::after {
 .logo-container::after {
   content: '';
   position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 216px;
-  height: 216px;
+  top: 10px;  /* Adjusted from 12px for smaller container */
+  left: 10px; /* Adjusted from 12px for smaller container */
+  width: 180px; /* Adjusted from 216px (200px - 20px) */
+  height: 180px; /* Adjusted from 216px */
   border: 2px solid transparent;
   border-bottom: 2px solid rgba(255, 215, 0, 0.5);
   border-left: 2px solid rgba(212, 175, 55, 0.3);
@@ -153,12 +154,12 @@ body::after {
   animation: sparkleFloat 3s ease-in-out infinite;
 }
 
-.sparkle:nth-child(1) { top: 25px; right: 35px; animation-delay: 0s; }
-.sparkle:nth-child(2) { bottom: 35px; left: 25px; animation-delay: 1s; }
-.sparkle:nth-child(3) { top: 60px; left: 15px; animation-delay: 2s; }
-.sparkle:nth-child(4) { bottom: 25px; right: 20px; animation-delay: 0.5s; }
-.sparkle:nth-child(5) { top: 35px; left: 50%; transform: translateX(-50%); animation-delay: 1.5s; }
-.sparkle:nth-child(6) { bottom: 60px; right: 60px; animation-delay: 2.5s; }
+.sparkle:nth-child(1) { top: 20px; right: 30px; animation-delay: 0s; }  /* Adjusted for 200px container */
+.sparkle:nth-child(2) { bottom: 30px; left: 20px; animation-delay: 1s; }  /* Adjusted */
+.sparkle:nth-child(3) { top: 50px; left: 12px; animation-delay: 2s; }    /* Adjusted */
+.sparkle:nth-child(4) { bottom: 20px; right: 15px; animation-delay: 0.5s; } /* Adjusted */
+.sparkle:nth-child(5) { top: 30px; left: 50%; transform: translateX(-50%); animation-delay: 1.5s; } /* Adjusted */
+.sparkle:nth-child(6) { bottom: 50px; right: 50px; animation-delay: 2.5s; } /* Adjusted */
 
 .app-title {
   font-family: 'Cinzel', serif;
@@ -171,24 +172,24 @@ body::after {
   background-clip: text;
   text-shadow: 0 0 30px var(--gold-glow);
   letter-spacing: 0.1em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;  /* Reduced from 0.5rem */
   animation: textShimmer 4s ease-in-out infinite alternate;
 }
 
 .app-subtitle {
-  font-size: 1.1rem;
+  font-size: 1rem;  /* Reduced from 1.1rem */
   color: rgba(248, 248, 248, 0.7);
   font-weight: 300;
   letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;  /* Reduced from 0.5rem */
 }
 
 .call-to-action {
-  font-size: 1rem;
+  font-size: 0.9rem;  /* Reduced from 1rem */
   color: var(--gold-primary);
   font-weight: 400;
   letter-spacing: 0.02em;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;  /* Reduced from 1.5rem */
   opacity: 0.9;
   font-style: italic;
 }
@@ -205,10 +206,10 @@ body::after {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;  /* Reduced from 1.5rem */
   align-items: center;
-  margin-bottom: 3rem;
-  padding: 2rem;
+  margin-bottom: 1.5rem;  /* Reduced from 3rem */
+  padding: 1.5rem;  /* Reduced from 2rem */
   background: rgba(26, 26, 26, 0.8);
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 20px;
@@ -469,15 +470,15 @@ body::after {
   }
   
   .logo-container::before {
-    width: 180px;
-    height: 180px;
+    width: 160px;  /* Adjusted for mobile - smaller than desktop */
+    height: 160px;
   }
   
   .logo-container::after {
-    top: 9px;
-    left: 9px;
-    width: 162px;
-    height: 162px;
+    top: 8px;   /* Adjusted for mobile */
+    left: 8px;  /* Adjusted for mobile */
+    width: 144px; /* Adjusted for mobile (160px - 16px) */
+    height: 144px;
   }
 }
 

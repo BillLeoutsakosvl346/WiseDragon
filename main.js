@@ -4,9 +4,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const toolRegistry = require('./tools');
 const sessionManager = require('./tools/sessionManager');
-const { startAutoScreenshotCapture, stopAutoScreenshotCapture } = require('./tools/overlay/auto-screenshot-capture');
-const { getEnhancedInstructions } = require('./tools/overlay/screen-context-provider');
-const { logSystemStatus } = require('./tools/overlay/status-checker');
+const { startAutoScreenshotCapture, stopAutoScreenshotCapture } = require('./tools/overlay/screen-state');
+const { getEnhancedInstructions, logSystemStatus } = require('./tools/overlay/screen-state');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
@@ -93,7 +92,7 @@ ipcMain.handle('tool:execute', async (event, { name, args }) => {
   try {
     return await toolRegistry.executeTool(name, args);
   } catch (error) {
-    console.error('Tool execution failed:', error.message);
+    console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] Tool execution failed:`, error.message);
     return {
       success: false,
       error: error.message
@@ -112,7 +111,7 @@ app.whenReady().then(async () => {
   // Log system status
   setTimeout(() => logSystemStatus(), 1000); // Small delay to let everything initialize
   
-  console.log('🚀 WiseDragon ready with auto-screenshot enabled');
+  console.log(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 🚀 WiseDragon ready with auto-screenshot enabled`);
   
   createWindow();
   app.on('activate', () => {

@@ -1,39 +1,107 @@
 const { screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const { setLastScreenshot } = require('../overlay_context');
-const { quickCapture, getAvailableMethods } = require('./fastCapture');
-const { compressScreenshot } = require('./compress');
 const sessionManager = require('../sessionManager');
 
+// Simple capture using robotjs (remove fallbacks for simplicity)
+let robotjs;
+try {
+  robotjs = require('@jitsi/robotjs');
+} catch (err) {
+  try {
+    robotjs = require('robotjs');
+  } catch (err2) {
+    console.error('RobotJS not available. Install with: npm install @jitsi/robotjs');
+  }
+}
+
+/**
+ * Capture screenshot using robotjs
+ */
+async function captureScreenshot() {
+  if (!robotjs) {
+    throw new Error('RobotJS not available for screenshot capture');
+  }
+  
+  const screenSize = robotjs.getScreenSize();
+  const bitmap = robotjs.screen.capture(0, 0, screenSize.width, screenSize.height);
+  
+  return {
+    buffer: bitmap.image,
+    width: bitmap.width,
+    height: bitmap.height,
+    format: 'BGRA'
+  };
+}
+
+/**
+ * Compress screenshot to 1366x768 PNG with 64-color quantization
+ */
+async function compressToUnifiedFormat(frameData) {
+  const { buffer, width, height, format } = frameData;
+  
+  if (format !== 'BGRA') {
+    throw new Error(`Unsupported format: ${format}. Expected BGRA.`);
+  }
+  
+  const result = await sharp(buffer, { raw: { width, height, channels: 4 } })
+    .removeAlpha()
+    .recomb([
+      [0, 0, 1], // B->R  
+      [0, 1, 0], // G->G
+      [1, 0, 0], // R->B
+    ])
+    .resize(1366, 768, { fit: 'fill', kernel: 'mitchell' })
+    .png({
+      palette: true,
+      colours: 64,
+      dither: 0,
+      compressionLevel: 6,
+      effort: 3
+    })
+    .toBuffer();
+  
+  return {
+    buffer: result,
+    size: result.length,
+    colors: 64,
+    finalWidth: 1366,
+    finalHeight: 768
+  };
+}
+
+/**
+ * Main screenshot execution function
+ */
 async function execute(args = {}) {
   const startTime = Date.now();
-  const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-  console.log(`[${timestamp}] 📸 Starting unified screenshot capture (1366x768 PNG 64-color)`);
+  const timestamp = () => new Date().toISOString().substring(11, 23);
+  
+  console.log(`[${timestamp()}] 📸 Taking screenshot...`);
   
   try {
-    // Step 1: Capture raw screenshot
-    const frameData = await quickCapture();
+    // Capture raw screenshot
+    const frameData = await captureScreenshot();
     
-    // Step 2: Compress to unified format
-    const compressionStartTime = Date.now();
-    const compressed = await compressScreenshot(frameData);
-    const compressionDuration = Date.now() - compressionStartTime;
+    // Compress to unified format
+    const compressed = await compressToUnifiedFormat(frameData);
     
-    // Get metadata 
+    // Get display info
     const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const width = compressed.finalWidth;
     const height = compressed.finalHeight;
     
-    // Create timestamp and filename
+    // Create filename with timestamp
     const baseTimestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-    
-    // Save single unified format (1366x768 for WebRTC compatibility)
     const filename = `${baseTimestamp}_${width}x${height}_${compressed.colors}colors.png`;
     const filePath = sessionManager.getScreenshotPath(filename);
+    
+    // Save screenshot
     fs.writeFileSync(filePath, compressed.buffer);
     
-    // Store metadata with single path
+    // Store metadata
     setLastScreenshot({
       displayId: disp.id,
       displayBounds: disp.bounds,
@@ -43,29 +111,19 @@ async function execute(args = {}) {
     });
     
     const duration = Date.now() - startTime;
-    const endTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-    
-    console.log(`[${endTimestamp}] 📸 Unified screenshot complete (${duration}ms):`);
-    console.log(`[${endTimestamp}]   ⚡ Compression: ${compressionDuration}ms (BGRA→PNG 64-color)`);
-    console.log(`[${endTimestamp}]   🎨 Universal: ${width}×${height}, ${(compressed.size/1000).toFixed(0)}KB, ${compressed.colors} colors PNG`);
-    console.log(`[${endTimestamp}]   📡 WebRTC-friendly: Optimized for realtime API transmission`);
-    console.log(`[${endTimestamp}]   📤 Ready for: Realtime GPT + UGround (Modal) + DINO (Replicate)`);
-    console.log(`[${endTimestamp}] 📤 Capture method: ${frameData.method}`);
+    console.log(`[${timestamp()}] ✅ Screenshot saved: ${path.basename(filePath)} (${duration}ms, ${Math.round(compressed.size/1024)}KB)`);
     
     return {
       success: true,
-      // Universal data (works for everything)
       image: compressed.buffer.toString('base64'),
       imageFormat: 'png',
       width: width,
       height: height,
-      source: frameData.method,
+      source: 'robotjs',
       colors: compressed.colors,
       fileSizeBytes: compressed.size,
       optimized: true,
       path: filePath,
-      
-      // Simplified metadata
       lastScreenshotMeta: { 
         imageW: width, 
         imageH: height, 
@@ -75,7 +133,7 @@ async function execute(args = {}) {
     };
     
   } catch (error) {
-    console.error(`❌ Screenshot failed:`, error.message);
+    console.error(`[${timestamp()}] ❌ Screenshot failed:`, error.message);
     return { success: false, error: error.message };
   }
 }

@@ -8,11 +8,18 @@
  */
 function getArrowTipOffset(direction, size = 150) {
   const offset = size * 0.35;
+  const diagonalOffset = offset * 0.7; // Slightly closer for diagonal arrows
+  
   const offsets = { 
     right: { x: -offset, y: 0 }, 
     down: { x: 0, y: -offset }, 
     left: { x: offset, y: 0 }, 
-    up: { x: 0, y: offset } 
+    up: { x: 0, y: offset },
+    // New diagonal directions
+    'up-left': { x: diagonalOffset, y: diagonalOffset },
+    'up-right': { x: -diagonalOffset, y: diagonalOffset },
+    'down-left': { x: diagonalOffset, y: -diagonalOffset },
+    'down-right': { x: -diagonalOffset, y: -diagonalOffset }
   };
   return offsets[direction] || { x: 0, y: 0 };
 }
@@ -22,7 +29,17 @@ function getArrowTipOffset(direction, size = 150) {
  */
 function createArrowHTML(direction, targetX, targetY, color = '#D4AF37', opacity = 0.7) {
   const size = 150;
-  const rotations = { right: 0, down: 90, left: 180, up: 270 };
+  const rotations = { 
+    right: 0, 
+    down: 90, 
+    left: 180, 
+    up: 270,
+    // New diagonal directions (45-degree angles)
+    'up-right': 315,    // 270 + 45
+    'down-right': 45,   // 0 + 45
+    'down-left': 135,   // 90 + 45
+    'up-left': 225      // 180 + 45
+  };
   const offset = getArrowTipOffset(direction, size);
   const centerX = targetX + offset.x;
   const centerY = targetY + offset.y;

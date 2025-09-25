@@ -64,21 +64,41 @@ function transformToPixels(normalizedCoords, dimensions) {
 }
 
 /**
- * Determine arrow direction based on coordinate position
+ * Determine arrow direction based on coordinate position using 9-grid system
  */
 function determineDirection(normalizedCoords) {
   const { x, y } = normalizedCoords;
   const xPercent = x / 10; // 0-1000 -> 0-100
   const yPercent = y / 10; // 0-1000 -> 0-100
   
-  if (yPercent <= 25) return 'up';
-  if (yPercent >= 75) return 'down';
-  if (xPercent <= 25) return 'left';
-  if (xPercent >= 75) return 'right';
+  // Divide screen into 9 equal rectangles (33.33% each)
+  const leftThird = xPercent <= 33.33;
+  const rightThird = xPercent >= 66.67;
+  const middleX = !leftThird && !rightThird;
   
-  // Middle area - deterministic but pseudo-random
-  const directions = ['up', 'right', 'down', 'left'];
-  return directions[Math.floor((x + y) % 4)];
+  const topThird = yPercent <= 33.33;
+  const bottomThird = yPercent >= 66.67;
+  const middleY = !topThird && !bottomThird;
+  
+  // Corner positions (diagonal arrows at 45 degrees)
+  if (topThird && leftThird) return 'up-left';        // Top-left corner
+  if (topThird && rightThird) return 'up-right';      // Top-right corner
+  if (bottomThird && leftThird) return 'down-left';   // Bottom-left corner
+  if (bottomThird && rightThird) return 'down-right'; // Bottom-right corner
+  
+  // Edge positions (straight arrows)
+  if (topThird && middleX) return 'up';               // Top edge
+  if (bottomThird && middleX) return 'down';          // Bottom edge
+  if (middleY && leftThird) return 'left';            // Left edge
+  if (middleY && rightThird) return 'right';          // Right edge
+  
+  // Center position (50/50 probability between up and down)
+  if (middleX && middleY) {
+    return (x + y) % 2 === 0 ? 'up' : 'down';        // Deterministic but 50/50 distribution
+  }
+  
+  // Fallback (should not happen)
+  return 'up';
 }
 
 /**

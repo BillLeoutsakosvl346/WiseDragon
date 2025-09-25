@@ -8,13 +8,20 @@ const screenshotTool = require('../screenshot');
 
 let isAutoScreenshotEnabled = false;
 let lastCaptureTime = 0;
+let autoAnalysisCallback = null; // Callback to send screenshots for automatic analysis
+let arrowsVisible = false; // Track if arrows are currently visible
+let arrowsRecentlyVisible = false; // Track if arrows were recently visible (for analysis window)
+let arrowsGracePeriodTimeout = null; // Timeout for arrow grace period
+let analysisInFlight = false; // Guard against duplicate analysis triggers
 const CAPTURE_DEBOUNCE_MS = 1000; // Don't capture more than once per second
-const SCREENSHOT_DELAY_MS = 100;  // Wait 100ms after click for screen to update
+const SCREENSHOT_DELAY_MS = 2000;  // Wait 2s for UI to settle after click
+const ARROWS_GRACE_PERIOD_MS = 3000; // Time window after arrows disappear to still allow analysis (longer than screenshot delay)
 
 /**
  * Start automatic screenshot capture on user interactions
  */
-async function startAutoScreenshotCapture() {
+async function startAutoScreenshotCapture(analysisCallback = null) {
+  autoAnalysisCallback = analysisCallback;
   if (isAutoScreenshotEnabled) {
     console.log(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 Auto-screenshot already enabled`);
     return;
@@ -35,7 +42,7 @@ async function startAutoScreenshotCapture() {
 
     try {
       const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-      console.log(`[${timestamp}] 📸 User interaction detected - capturing screenshot in ${SCREENSHOT_DELAY_MS}ms...`);
+      console.log(`[${timestamp}] 📸 User interaction detected - capturing screenshot in ${SCREENSHOT_DELAY_MS}ms for auto-analysis...`);
       
       // Wait for screen to update after click
       setTimeout(async () => {
@@ -58,8 +65,13 @@ async function startAutoScreenshotCapture() {
           
           setLastScreenshot(screenshotMeta);
           const successTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-          console.log(`[${successTimestamp}] 📸 ✅ Auto-captured unified screenshot (after ${SCREENSHOT_DELAY_MS}ms delay):`);
-          console.log(`[${successTimestamp}]   🎨 Universal: ${require('path').basename(screenshotResult.lastScreenshotMeta.path)} (1366x768 PNG 64-color)`);
+          console.log(`[${successTimestamp}] 📸 ✅ Auto-captured screenshot after user click (${SCREENSHOT_DELAY_MS}ms delay)`);
+          
+          // Note: Auto-analysis is now handled by explicit queueAutoScreenshotAndAnalyze() calls
+          // This path is only for regular screenshot capture without analysis
+          if (autoAnalysisCallback) {
+            console.log(`[${successTimestamp}] 📸 Screenshot captured but skipping analysis (no arrows visible or recently visible)`);
+          }
           
         } else {
           console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 ❌ Auto-screenshot failed:`, screenshotResult.error);
@@ -83,6 +95,13 @@ function stopAutoScreenshotCapture() {
   console.log(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 Stopping automatic screenshot capture...`);
   isAutoScreenshotEnabled = false;
   stopGlobalInputDetection();
+  
+  // Clean up arrow grace period timeout
+  if (arrowsGracePeriodTimeout) {
+    clearTimeout(arrowsGracePeriodTimeout);
+    arrowsGracePeriodTimeout = null;
+  }
+  arrowsRecentlyVisible = false;
 }
 
 /**
@@ -135,23 +154,88 @@ function logSystemStatus() {
   console.log(`[${timestamp}]`);
 }
 
-/**
- * Get enhanced AI instructions that include current screen context
- */
-function getEnhancedInstructions(baseInstructions) {
-  const screenContext = getCurrentScreenContext();
-  
-  const contextAddition = screenContext.hasCurrentScreen 
-    ? `\n\nCurrent screen available (${screenContext.secondsAgo}s ago). Take screenshot when user asks about their screen.`
-    : `\n\nTake screenshot when user asks about their screen.`;
+// getEnhancedInstructions moved to prompts/index.js for centralization
 
-  return baseInstructions + contextAddition;
+/**
+ * Update arrow visibility state (called by overlay manager)
+ */
+function setArrowVisibility(visible) {
+  arrowsVisible = visible;
+  const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+  
+  if (visible) {
+    // Arrows appeared - enable analysis immediately
+    arrowsRecentlyVisible = true;
+    // Clear any existing timeout
+    if (arrowsGracePeriodTimeout) {
+      clearTimeout(arrowsGracePeriodTimeout);
+      arrowsGracePeriodTimeout = null;
+    }
+    console.log(`[${timestamp}] 🏹 Arrow visibility changed: ENABLED auto-analysis`);
+  } else {
+    // Arrows disappeared - start grace period
+    console.log(`[${timestamp}] 🏹 Arrows disappeared - starting ${ARROWS_GRACE_PERIOD_MS}ms grace period for analysis`);
+    arrowsGracePeriodTimeout = setTimeout(() => {
+      arrowsRecentlyVisible = false;
+      const endTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+      console.log(`[${endTimestamp}] 🏹 Arrow grace period ended: DISABLED auto-analysis`);
+      
+      // Now stop global input detection since grace period is over
+      try {
+        const { stopGlobalInputDetection } = require('./ui/global-input-detector');
+        stopGlobalInputDetection();
+      } catch (e) {
+        // Ignore errors if already stopped
+      }
+    }, ARROWS_GRACE_PERIOD_MS);
+  }
 }
+
+/**
+ * NEW: Explicitly trigger screenshot and analysis from the same click event
+ * This is called from the same input event that cleans up arrows
+ */
+async function queueAutoScreenshotAndAnalyze(reason = 'interaction') {
+  if (!(arrowsVisible || arrowsRecentlyVisible)) {
+    console.log('⚪ Skipped analysis: no arrows visible or recently visible');
+    return;
+  }
+  
+  if (analysisInFlight) {
+    console.log('⚪ Skipped analysis: analysis already in flight');
+    return;
+  }
+  
+  analysisInFlight = true;
+  const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+  console.log(`[${timestamp}] 📸 Queuing screenshot and analysis (${reason}) in ${SCREENSHOT_DELAY_MS}ms...`);
+
+  setTimeout(async () => {
+    try {
+      const screenshotResult = await screenshotTool.executor({});
+      
+      if (autoAnalysisCallback) {
+        const successTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
+        console.log(`[${successTimestamp}] 🤖 Sending screenshot for automatic analysis (${reason})...`);
+        await autoAnalysisCallback(screenshotResult);
+      } else {
+        console.log('⚪ Skipped analysis: no callback available');
+      }
+    } catch (error) {
+      console.error('Auto analysis failed:', error.message);
+    } finally {
+      analysisInFlight = false;
+    }
+  }, SCREENSHOT_DELAY_MS);
+}
+
+// Removed queueDelayedScreenshot - simplified to single screenshot approach
 
 module.exports = {
   startAutoScreenshotCapture,
   stopAutoScreenshotCapture,
   getCurrentScreenContext,
-  getEnhancedInstructions,
-  logSystemStatus
+  logSystemStatus,
+  setArrowVisibility,
+  queueAutoScreenshotAndAnalyze
 };

@@ -2,8 +2,6 @@ const statusEl = document.getElementById('status');
 const audioEl = document.getElementById('assistant');
 const btnConn = document.getElementById('connect');
 const btnDisc = document.getElementById('disconnect');
-const agentViewEl = document.getElementById('agent-view');
-const imageInfoEl = document.getElementById('image-info');
 
 let pc; // RTCPeerConnection
 let localStream; // Your microphone stream
@@ -12,6 +10,50 @@ let dataChannel = null; // WebRTC data channel for sending events
 
 btnConn.onclick = start;
 btnDisc.onclick = stop;
+
+// Listen for automatic screenshot analysis from main process
+window.electronAPI?.receive('auto-analyze-screenshot', handleAutoScreenshotAnalysis);
+
+/**
+ * Handle automatic screenshot analysis after user clicks
+ */
+async function handleAutoScreenshotAnalysis(event, screenshotResult) {
+  if (!dataChannel || dataChannel.readyState !== 'open') {
+    console.log('DataChannel not ready for auto-analysis, skipping...');
+    return;
+  }
+
+  console.log('📸 Sending automatic screenshot analysis to model...');
+
+  // Send the screenshot to the model with context that this was an automatic capture
+  dataChannel.send(JSON.stringify({
+    type: 'conversation.item.create',
+    event_id: generateEventId(),
+    item: {
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: `I just clicked where you told me to click and this is my current screen (captured automatically after 2 seconds). 
+
+**IF YOU SEE LOADING INDICATORS:**
+If you see ANY loading indicators (spinners, "Loading...", progress bars, blank/white screens, partial content, skeleton loaders), respond with a brief natural phrase and ask me to let you know when it finishes. Use variety like: "Still loading - let me know when it's done!", "Page is still loading, tell me when you see it finish", "Almost there - ping me when it's ready!", "Give it a moment - let me know when you see the content", "Still working - tell me when the page loads", "Loading up - let me know when it's complete!"
+
+**IF FULLY LOADED:**
+Analyze what I've accomplished and guide me on what to do next. If I've completed the task, congratulate me and describe what I see. If I'm in the middle of a multi-step process, tell me the next step and show an arrow pointing to what I should click next.`
+        },
+        {
+          type: 'input_image',
+          image_url: `data:image/png;base64,${screenshotResult.image}`,
+          detail: 'auto'
+        }
+      ]
+    }
+  }));
+  
+  await triggerResponseCreation();
+}
 
 async function start() {
   btnConn.disabled = true;
@@ -29,10 +71,18 @@ async function start() {
     dataChannel = pc.createDataChannel('oai-events', { ordered: true });
     setupDataChannelHandlers();
 
-    pc.ontrack = (ev) => {
+    pc.ontrack = async (ev) => {
       audioEl.srcObject = ev.streams[0];
       status('Connected. Speak normally; the model replies when you pause.');
       btnDisc.disabled = false;
+      
+      // Start auto-screenshot system after successful connection
+      try {
+        await window.oai.startAutoScreenshot();
+        console.log('📸 Auto-screenshot system started after connection');
+      } catch (error) {
+        console.error('Failed to start auto-screenshot:', error);
+      }
     };
 
     const offer = await pc.createOffer();
@@ -74,8 +124,6 @@ async function stop() {
   localStream = null;
   dataChannel = null;
   activeFunctionCalls.clear();
-  
-  hideAgentImage(); // Clear the image display
   status('Disconnected.');
   btnConn.disabled = false;
 }
@@ -88,35 +136,10 @@ function generateEventId() {
   return `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function displayAgentImage(base64Image, imageInfo) {
-  if (base64Image) {
-    agentViewEl.src = `data:image/png;base64,${base64Image}`;
-    agentViewEl.classList.add('visible');
-    
-    const typeNames = {
-      'screenshot': 'Screenshot',
-      'coordinate-overlay': 'Coordinate Overlay', 
-      'plain-screenshot': 'Plain Screenshot'
-    };
-    
-    const typeName = typeNames[imageInfo.type] || 'Image';
-    imageInfoEl.textContent = `${typeName}: ${imageInfo.width}×${imageInfo.height}`;
-  }
-}
-
-function hideAgentImage() {
-  agentViewEl.classList.remove('visible');
-  imageInfoEl.textContent = '';
-}
+// Image display functions removed - UI simplified to buttons only
 
 
 async function sendScreenshot(callInfo, result) {
-  displayAgentImage(result.image, {
-    type: 'screenshot',
-    width: result.width,
-    height: result.height
-  });
-  
   dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),
@@ -164,12 +187,6 @@ async function sendFunctionCallResult(callInfo, result) {
   
   // Handle arrow overlay with image
   if (result.image && callInfo.name === 'show_arrow_overlay') {
-    displayAgentImage(result.image, {
-      type: 'plain-screenshot',
-      width: result.width,
-      height: result.height
-    });
-    
     result = {
       success: result.success,
       message: 'Arrow placed successfully. Continue conversation naturally.'

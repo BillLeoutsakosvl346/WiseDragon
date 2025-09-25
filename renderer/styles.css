@@ -31,10 +31,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;  /* Changed from center to flex-start */
+  justify-content: flex-start;
   overflow-x: hidden;
   position: relative;
-  padding-top: 2rem;  /* Add top padding to move everything up */
+  padding-top: 4rem;  /* Increased from 2rem to 4rem for more space */
 }
 
 body::before {
@@ -73,28 +73,28 @@ body::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 1.5rem;  /* Reduced from 3rem to 1.5rem */
+  margin-bottom: 3rem;  /* Increased back to 3rem for more spacing */
   text-align: center;
   animation: fadeInDown 1s ease-out;
 }
 
 .logo-container {
   position: relative;
-  margin-bottom: 1rem;  /* Reduced from 1.5rem to 1rem */
+  margin-bottom: 2rem;  /* Increased from 1rem to 2rem for more space */
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 200px;  /* Reduced from 240px to 200px */
-  height: 200px; /* Reduced from 240px to 200px */
+  width: 280px;  /* Increased from 200px to 280px for bigger logo */
+  height: 280px; /* Increased from 200px to 280px for bigger logo */
 }
 
 .logo {
-  width: 160px;  /* Reduced from 200px to 160px */
-  height: 160px; /* Reduced from 200px to 160px */
+  width: 220px;  /* Increased from 160px to 220px for bigger logo */
+  height: 220px; /* Increased from 160px to 220px for bigger logo */
   border-radius: 50%;
   background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary), var(--gold-dark));
   padding: 5px;
-  box-shadow: var(--shadow-gold-intense), var(--shadow-dark), 0 0 60px rgba(255, 215, 0, 0.4), inset 0 0 20px rgba(255, 215, 0, 0.2);
+  box-shadow: var(--shadow-gold-intense), var(--shadow-dark), 0 0 80px rgba(255, 215, 0, 0.4), inset 0 0 20px rgba(255, 215, 0, 0.2);
   animation: logoShineIntense 4s ease-in-out infinite;
   transition: transform 0.3s ease;
   position: relative;
@@ -118,11 +118,11 @@ body::after {
   position: absolute;
   top: 0;
   left: 0;
-  width: 200px;  /* Adjusted from 240px to match new container */
-  height: 200px; /* Adjusted from 240px to match new container */
-  border: 3px solid transparent;
-  border-top: 3px solid rgba(255, 215, 0, 0.7);
-  border-right: 3px solid rgba(212, 175, 55, 0.4);
+  width: 280px;  /* Match the new larger container */
+  height: 280px; /* Match the new larger container */
+  border: 4px solid transparent;  /* Thicker border for bigger logo */
+  border-top: 4px solid rgba(255, 215, 0, 0.7);
+  border-right: 4px solid rgba(212, 175, 55, 0.4);
   border-radius: 50%;
   animation: orbitRing 4s linear infinite, orbitGlow 4s ease-in-out infinite;
   z-index: 1;
@@ -131,13 +131,13 @@ body::after {
 .logo-container::after {
   content: '';
   position: absolute;
-  top: 10px;  /* Adjusted from 12px for smaller container */
-  left: 10px; /* Adjusted from 12px for smaller container */
-  width: 180px; /* Adjusted from 216px (200px - 20px) */
-  height: 180px; /* Adjusted from 216px */
-  border: 2px solid transparent;
-  border-bottom: 2px solid rgba(255, 215, 0, 0.5);
-  border-left: 2px solid rgba(212, 175, 55, 0.3);
+  top: 15px;  /* Adjusted for larger container */
+  left: 15px; /* Adjusted for larger container */
+  width: 250px; /* Adjusted for larger container (280px - 30px) */
+  height: 250px; /* Adjusted for larger container */
+  border: 3px solid transparent;  /* Thicker border */
+  border-bottom: 3px solid rgba(255, 215, 0, 0.5);
+  border-left: 3px solid rgba(212, 175, 55, 0.3);
   border-radius: 50%;
   animation: orbitRing 6s linear infinite reverse, orbitGlow 4s ease-in-out infinite 2s;
   z-index: 1;
@@ -146,20 +146,20 @@ body::after {
 /* Sparkle Effects */
 .sparkle {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 6px;  /* Bigger sparkles for bigger logo */
+  height: 6px; /* Bigger sparkles for bigger logo */
   background: var(--gold-light);
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--gold-light);
+  box-shadow: 0 0 10px var(--gold-light);  /* Stronger glow */
   animation: sparkleFloat 3s ease-in-out infinite;
 }
 
-.sparkle:nth-child(1) { top: 20px; right: 30px; animation-delay: 0s; }  /* Adjusted for 200px container */
-.sparkle:nth-child(2) { bottom: 30px; left: 20px; animation-delay: 1s; }  /* Adjusted */
-.sparkle:nth-child(3) { top: 50px; left: 12px; animation-delay: 2s; }    /* Adjusted */
-.sparkle:nth-child(4) { bottom: 20px; right: 15px; animation-delay: 0.5s; } /* Adjusted */
-.sparkle:nth-child(5) { top: 30px; left: 50%; transform: translateX(-50%); animation-delay: 1.5s; } /* Adjusted */
-.sparkle:nth-child(6) { bottom: 50px; right: 50px; animation-delay: 2.5s; } /* Adjusted */
+.sparkle:nth-child(1) { top: 25px; right: 40px; animation-delay: 0s; }  /* Adjusted for 280px container */
+.sparkle:nth-child(2) { bottom: 40px; left: 25px; animation-delay: 1s; }  /* Adjusted */
+.sparkle:nth-child(3) { top: 70px; left: 15px; animation-delay: 2s; }    /* Adjusted */
+.sparkle:nth-child(4) { bottom: 25px; right: 20px; animation-delay: 0.5s; } /* Adjusted */
+.sparkle:nth-child(5) { top: 40px; left: 50%; transform: translateX(-50%); animation-delay: 1.5s; } /* Adjusted */
+.sparkle:nth-child(6) { bottom: 70px; right: 60px; animation-delay: 2.5s; } /* Adjusted */
 
 .app-title {
   font-family: 'Cinzel', serif;
@@ -185,11 +185,11 @@ body::after {
 }
 
 .call-to-action {
-  font-size: 0.9rem;  /* Reduced from 1rem */
+  font-size: 0.9rem;
   color: var(--gold-primary);
   font-weight: 400;
   letter-spacing: 0.02em;
-  margin-bottom: 1rem;  /* Reduced from 1.5rem */
+  margin-bottom: 2.5rem;  /* Increased from 1rem to 2.5rem for more space */
   opacity: 0.9;
   font-style: italic;
 }
@@ -206,10 +206,10 @@ body::after {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 1rem;  /* Reduced from 1.5rem */
+  gap: 2rem;  /* Increased from 1rem to 2rem for more spacing */
   align-items: center;
-  margin-bottom: 1.5rem;  /* Reduced from 3rem */
-  padding: 1.5rem;  /* Reduced from 2rem */
+  margin-bottom: 3rem;  /* Increased from 1.5rem to 3rem for more space */
+  padding: 2.5rem;  /* Increased from 1.5rem to 2.5rem for more padding */
   background: rgba(26, 26, 26, 0.8);
   border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 20px;
@@ -220,7 +220,7 @@ body::after {
 
 .button-group {
   display: flex;
-  gap: 2rem;
+  gap: 3rem;  /* Increased from 2rem to 3rem for more spacing between buttons */
   align-items: center;
 }
 
@@ -317,42 +317,7 @@ body::after {
   line-height: 1.4;
 }
 
-.vision-area {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  animation: fadeInUp 1s ease-out 0.6s both;
-}
-
-#agent-view {
-  max-width: 800px;
-  max-height: 600px;
-  border: 3px solid var(--gold-primary);
-  border-radius: 20px;
-  display: none;
-  box-shadow: var(--shadow-gold), var(--shadow-dark);
-  transition: all 0.3s ease;
-}
-
-#agent-view.visible {
-  display: block;
-  animation: imageAppear 0.5s ease-out;
-}
-
-#agent-view:hover {
-  transform: scale(1.02);
-  box-shadow: 0 0 30px var(--gold-glow), var(--shadow-dark);
-}
-
-.image-info {
-  font-size: 0.9rem;
-  color: rgba(248, 248, 248, 0.6);
-  margin-top: 1rem;
-  text-align: center;
-  font-weight: 300;
-  letter-spacing: 0.03em;
-}
+/* Vision area styles removed - simplified to buttons only */
 
 /* Animations */
 @keyframes fadeInDown {
@@ -444,10 +409,7 @@ body::after {
     padding: 1rem;
   }
   
-  #agent-view {
-    max-width: 90vw;
-    max-height: 60vh;
-  }
+  /* Agent view styles removed */
   
   .main-content {
     padding: 0 1rem;
@@ -460,25 +422,25 @@ body::after {
   }
   
   .logo-container {
-    width: 180px;
-    height: 180px;
+    width: 240px;  /* Increased for mobile to keep it prominent */
+    height: 240px;
   }
   
   .logo {
-    width: 140px;
-    height: 140px;
+    width: 180px;  /* Increased for mobile */
+    height: 180px;
   }
   
   .logo-container::before {
-    width: 160px;  /* Adjusted for mobile - smaller than desktop */
-    height: 160px;
+    width: 240px;  /* Match container size */
+    height: 240px;
   }
   
   .logo-container::after {
-    top: 8px;   /* Adjusted for mobile */
-    left: 8px;  /* Adjusted for mobile */
-    width: 144px; /* Adjusted for mobile (160px - 16px) */
-    height: 144px;
+    top: 12px;   /* Adjusted for larger mobile logo */
+    left: 12px;  /* Adjusted for larger mobile logo */
+    width: 216px; /* Adjusted for mobile (240px - 24px) */
+    height: 216px;
   }
 }
 

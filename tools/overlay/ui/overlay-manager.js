@@ -11,6 +11,12 @@ const { getTimestamp } = require('../../../utils/logger');
 // Keep track of overlay windows
 let overlays = [];
 
+// Notify screen-state when arrows appear/disappear
+let arrowStateCallback = null;
+
+// Control whether to stop input detection when overlays are cleaned up
+let shouldStopInputDetectionOnCleanup = true;
+
 /**
  * Create an overlay window for a specific display
  */
@@ -47,8 +53,8 @@ function createOverlayWindow(display, htmlContent) {
       overlays.splice(index, 1);
     }
     
-    // If no more overlays, stop global input detection
-    if (overlays.length === 0) {
+    // If no more overlays, stop global input detection (only if allowed)
+    if (overlays.length === 0 && shouldStopInputDetectionOnCleanup) {
       stopGlobalInputDetection();
     }
   });
@@ -81,12 +87,23 @@ function showArrowOverlay(direction, targetX, targetY, displayBounds, options = 
   const overlay = createOverlayWindow(targetDisplay, htmlContent);
   overlays.push(overlay);
   
+  // Notify that arrows are now visible (enable auto-analysis)
+  if (overlays.length === 1 && arrowStateCallback) {
+    arrowStateCallback(true); // arrows appeared
+  }
+  
   // Setup global input detection (only once when first overlay is created)
   if (overlays.length === 1) {
     startGlobalInputDetection(() => {
       if (overlays.length > 0) {
         console.log(`[${getTimestamp()}] 🧹 Cleaning up arrows due to user interaction`);
-        cleanupAllOverlays();
+        
+        // Action 1: Clean up visuals immediately (do not stop global input)
+        cleanupOverlayVisuals();
+        
+        // Action 2: Schedule screenshot/analysis from THIS SAME event
+        const { queueAutoScreenshotAndAnalyze } = require('../screen-state');
+        queueAutoScreenshotAndAnalyze('arrows recently visible');
       }
     });
   }
@@ -95,10 +112,15 @@ function showArrowOverlay(direction, targetX, targetY, displayBounds, options = 
 }
 
 /**
- * Clean up all overlay windows
+ * Clean up just the visual overlays (keep input detection active)
  */
-function cleanupAllOverlays() {
-  console.log(`[${getTimestamp()}] 🧹 Cleaning up all arrow overlays...`);
+function cleanupOverlayVisuals() {
+  console.log(`[${getTimestamp()}] 🧹 Cleaning up arrow visuals (keeping input detection active)...`);
+  
+  const hadOverlays = overlays.length > 0;
+  
+  // Temporarily disable automatic input detection stopping
+  shouldStopInputDetectionOnCleanup = false;
   
   overlays.forEach(win => {
     if (win && !win.isDestroyed()) {
@@ -106,6 +128,35 @@ function cleanupAllOverlays() {
     }
   });
   overlays = [];
+  
+  // Re-enable automatic input detection stopping for future cleanups
+  shouldStopInputDetectionOnCleanup = true;
+  
+  // Notify that arrows are no longer visible (start grace period)
+  if (hadOverlays && arrowStateCallback) {
+    arrowStateCallback(false); // arrows disappeared
+  }
+}
+
+/**
+ * Clean up all overlay windows and stop input detection
+ */
+function cleanupAllOverlays() {
+  console.log(`[${getTimestamp()}] 🧹 Cleaning up all arrow overlays...`);
+  
+  const hadOverlays = overlays.length > 0;
+  
+  overlays.forEach(win => {
+    if (win && !win.isDestroyed()) {
+      win.destroy();
+    }
+  });
+  overlays = [];
+  
+  // Notify that arrows are no longer visible (disable auto-analysis)
+  if (hadOverlays && arrowStateCallback) {
+    arrowStateCallback(false); // arrows disappeared
+  }
   
   // Stop global input detection
   stopGlobalInputDetection();
@@ -116,6 +167,13 @@ function cleanupAllOverlays() {
  */
 function getActiveOverlayCount() {
   return overlays.length;
+}
+
+/**
+ * Set callback to be notified when arrows appear/disappear
+ */
+function setArrowStateCallback(callback) {
+  arrowStateCallback = callback;
 }
 
 // Clean up overlays when app is closing
@@ -131,5 +189,7 @@ process.on('SIGTERM', cleanupAllOverlays);
 module.exports = {
   showArrowOverlay,
   cleanupAllOverlays,
-  getActiveOverlayCount
+  cleanupOverlayVisuals,
+  getActiveOverlayCount,
+  setArrowStateCallback
 };

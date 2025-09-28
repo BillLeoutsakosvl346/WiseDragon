@@ -5,7 +5,7 @@ const sharp = require('sharp');
 const { setLastScreenshot } = require('../overlay_context');
 const sessionManager = require('../sessionManager');
 
-// Simple capture using robotjs (remove fallbacks for simplicity)
+// Screenshot capture using robotjs
 let robotjs;
 try {
   robotjs = require('@jitsi/robotjs');
@@ -13,7 +13,7 @@ try {
   try {
     robotjs = require('robotjs');
   } catch (err2) {
-    console.error('RobotJS not available. Install with: npm install @jitsi/robotjs');
+    console.error('RobotJS not available');
   }
 }
 
@@ -37,7 +37,7 @@ async function captureScreenshot() {
 }
 
 /**
- * Compress screenshot to 1366x768 PNG with 64-color quantization
+ * Compress and optimize screenshot
  */
 async function compressToUnifiedFormat(frameData) {
   const { buffer, width, height, format } = frameData;
@@ -73,60 +73,45 @@ async function compressToUnifiedFormat(frameData) {
 }
 
 /**
- * Main screenshot execution function
+ * Take and process screenshot
  */
 async function execute(args = {}) {
-  const startTime = Date.now();
   const timestamp = () => new Date().toISOString().substring(11, 23);
   
   console.log(`[${timestamp()}] 📸 Taking screenshot...`);
   
   try {
-    // Capture raw screenshot
     const frameData = await captureScreenshot();
-    
-    // Compress to unified format
     const compressed = await compressToUnifiedFormat(frameData);
-    
-    // Get display info
     const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    const width = compressed.finalWidth;
-    const height = compressed.finalHeight;
     
-    // Create filename with timestamp
+    // Create filename and save
     const baseTimestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
-    const filename = `${baseTimestamp}_${width}x${height}_${compressed.colors}colors.png`;
+    const filename = `${baseTimestamp}_${compressed.finalWidth}x${compressed.finalHeight}_${compressed.colors}colors.png`;
     const filePath = sessionManager.getScreenshotPath(filename);
     
-    // Save screenshot
     fs.writeFileSync(filePath, compressed.buffer);
     
-    // Store metadata
     setLastScreenshot({
       displayId: disp.id,
       displayBounds: disp.bounds,
-      imageW: width,
-      imageH: height,
+      imageW: compressed.finalWidth,
+      imageH: compressed.finalHeight,
       path: filePath
     });
     
-    const duration = Date.now() - startTime;
-    console.log(`[${timestamp()}] ✅ Screenshot saved: ${path.basename(filePath)} (${duration}ms, ${Math.round(compressed.size/1024)}KB)`);
+    console.log(`[${timestamp()}] ✅ Screenshot saved: ${path.basename(filePath)}`);
     
     return {
       success: true,
       image: compressed.buffer.toString('base64'),
-      imageFormat: 'png',
-      width: width,
-      height: height,
+      width: compressed.finalWidth,
+      height: compressed.finalHeight,
       source: 'robotjs',
-      colors: compressed.colors,
-      fileSizeBytes: compressed.size,
-      optimized: true,
       path: filePath,
       lastScreenshotMeta: { 
-        imageW: width, 
-        imageH: height, 
+        imageW: compressed.finalWidth, 
+        imageH: compressed.finalHeight, 
         displayBounds: disp.bounds, 
         path: filePath
       }

@@ -9,13 +9,10 @@ const screenshotTool = require('../screenshot');
 let isAutoScreenshotEnabled = false;
 let lastCaptureTime = 0;
 let autoAnalysisCallback = null; // Callback to send screenshots for automatic analysis
-let arrowsVisible = false; // Track if arrows are currently visible
-let arrowsRecentlyVisible = false; // Track if arrows were recently visible (for analysis window)
-let arrowsGracePeriodTimeout = null; // Timeout for arrow grace period
+let arrowsActive = false; // Simple arrow state tracking
 let analysisInFlight = false; // Guard against duplicate analysis triggers
 const CAPTURE_DEBOUNCE_MS = 1000; // Don't capture more than once per second
 const SCREENSHOT_DELAY_MS = 2000;  // Wait 2s for UI to settle after click
-const ARROWS_GRACE_PERIOD_MS = 3000; // Time window after arrows disappear to still allow analysis (longer than screenshot delay)
 
 /**
  * Start automatic screenshot capture on user interactions
@@ -95,13 +92,7 @@ function stopAutoScreenshotCapture() {
   console.log(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 Stopping automatic screenshot capture...`);
   isAutoScreenshotEnabled = false;
   stopGlobalInputDetection();
-  
-  // Clean up arrow grace period timeout
-  if (arrowsGracePeriodTimeout) {
-    clearTimeout(arrowsGracePeriodTimeout);
-    arrowsGracePeriodTimeout = null;
-  }
-  arrowsRecentlyVisible = false;
+  arrowsActive = false;
 }
 
 /**
@@ -160,44 +151,17 @@ function logSystemStatus() {
  * Update arrow visibility state (called by overlay manager)
  */
 function setArrowVisibility(visible) {
-  arrowsVisible = visible;
+  arrowsActive = visible;
   const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-  
-  if (visible) {
-    // Arrows appeared - enable analysis immediately
-    arrowsRecentlyVisible = true;
-    // Clear any existing timeout
-    if (arrowsGracePeriodTimeout) {
-      clearTimeout(arrowsGracePeriodTimeout);
-      arrowsGracePeriodTimeout = null;
-    }
-    console.log(`[${timestamp}] 🏹 Arrow visibility changed: ENABLED auto-analysis`);
-  } else {
-    // Arrows disappeared - start grace period
-    console.log(`[${timestamp}] 🏹 Arrows disappeared - starting ${ARROWS_GRACE_PERIOD_MS}ms grace period for analysis`);
-    arrowsGracePeriodTimeout = setTimeout(() => {
-      arrowsRecentlyVisible = false;
-      const endTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-      console.log(`[${endTimestamp}] 🏹 Arrow grace period ended: DISABLED auto-analysis`);
-      
-      // Now stop global input detection since grace period is over
-      try {
-        const { stopGlobalInputDetection } = require('./ui/global-input-detector');
-        stopGlobalInputDetection();
-      } catch (e) {
-        // Ignore errors if already stopped
-      }
-    }, ARROWS_GRACE_PERIOD_MS);
-  }
+  console.log(`[${timestamp}] 🏹 Arrows ${visible ? 'ENABLED' : 'DISABLED'} - auto-analysis ${visible ? 'active' : 'inactive'}`);
 }
 
 /**
- * NEW: Explicitly trigger screenshot and analysis from the same click event
- * This is called from the same input event that cleans up arrows
+ * Trigger screenshot and analysis when arrows were active
  */
-async function queueAutoScreenshotAndAnalyze(reason = 'interaction') {
-  if (!(arrowsVisible || arrowsRecentlyVisible)) {
-    console.log('⚪ Skipped analysis: no arrows visible or recently visible');
+async function queueAutoScreenshotAndAnalyze(reason = 'interaction', forceAnalysis = false) {
+  if (!forceAnalysis && !arrowsActive) {
+    console.log('⚪ Skipped analysis: no arrows active');
     return;
   }
   

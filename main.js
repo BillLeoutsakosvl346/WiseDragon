@@ -47,7 +47,7 @@ ipcMain.handle('oai:getEphemeral', async () => {
       session: {
         type: 'realtime',
         model: 'gpt-realtime',
-        audio: { output: { voice: 'marin' } },
+        audio: { output: { voice: 'ash' } },
         tools: toolSchemas,
         tool_choice: 'auto',
         instructions: enhancedInstructions

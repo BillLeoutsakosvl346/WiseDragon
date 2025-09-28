@@ -3,9 +3,9 @@ const audioEl = document.getElementById('assistant');
 const btnConn = document.getElementById('connect');
 const btnDisc = document.getElementById('disconnect');
 
+
 let pc; // RTCPeerConnection
 let localStream; // Your microphone stream
-let activeFunctionCalls = new Map(); // Track ongoing function calls
 let dataChannel = null; // WebRTC data channel for sending events
 
 btnConn.onclick = start;
@@ -35,13 +35,7 @@ async function handleAutoScreenshotAnalysis(event, screenshotResult) {
       content: [
         {
           type: 'input_text',
-          text: `I just clicked where you told me to click and this is my current screen (captured automatically after 2 seconds). 
-
-**IF YOU SEE LOADING INDICATORS:**
-If you see ANY loading indicators (spinners, "Loading...", progress bars, blank/white screens, partial content, skeleton loaders), respond with a brief natural phrase and ask me to let you know when it finishes. Use variety like: "Still loading - let me know when it's done!", "Page is still loading, tell me when you see it finish", "Almost there - ping me when it's ready!", "Give it a moment - let me know when you see the content", "Still working - tell me when the page loads", "Loading up - let me know when it's complete!"
-
-**IF FULLY LOADED:**
-Analyze what I've accomplished and guide me on what to do next. If I've completed the task, congratulate me and describe what I see. If I'm in the middle of a multi-step process, tell me the next step and show an arrow pointing to what I should click next.`
+          text: window.prompts.AUTO_ANALYSIS_AFTER_CLICK
         },
         {
           type: 'input_image',
@@ -123,7 +117,6 @@ async function stop() {
   pc = null;
   localStream = null;
   dataChannel = null;
-  activeFunctionCalls.clear();
   status('Disconnected.');
   btnConn.disabled = false;
 }
@@ -139,13 +132,13 @@ function generateEventId() {
 // Image display functions removed - UI simplified to buttons only
 
 
-async function sendScreenshot(callInfo, result) {
+async function sendScreenshot(event, result) {
   dataChannel.send(JSON.stringify({
     type: 'conversation.item.create',
     event_id: generateEventId(),
     item: {
       type: 'function_call_output',
-      call_id: callInfo.event.call_id,
+      call_id: event.call_id,
       output: JSON.stringify({
         success: true,
         message: `Screenshot captured: ${result.width}×${result.height}`
@@ -164,7 +157,7 @@ async function sendScreenshot(callInfo, result) {
       content: [
         {
           type: 'input_text',
-          text: `Screenshot of my screen (${result.width}×${result.height}). Please analyze this image.`
+          text: window.prompts.MANUAL_SCREENSHOT_ANALYSIS(result.width, result.height)
         },
         {
           type: 'input_image',
@@ -178,18 +171,18 @@ async function sendScreenshot(callInfo, result) {
   await triggerResponseCreation();
 }
 
-async function sendFunctionCallResult(callInfo, result) {
+async function sendFunctionCallResult(event, result) {
   // Handle screenshot results
   if ((result.imageUrl || result.image) && (result.source === 'desktopCapturer' || result.source === 'robotjs' || result.source === 'screenshot-desktop')) {
-    await sendScreenshot(callInfo, result);
+    await sendScreenshot(event, result);
     return;
   }
   
   // Handle arrow overlay with image
-  if (result.image && callInfo.name === 'show_arrow_overlay') {
+  if (result.image && event.name === 'show_arrow_overlay') {
     result = {
       success: result.success,
-      message: 'Arrow placed successfully. Continue conversation naturally.'
+      message: window.prompts.ARROW_PLACEMENT_SUCCESS
     };
   }
   
@@ -199,7 +192,7 @@ async function sendFunctionCallResult(callInfo, result) {
     event_id: generateEventId(),
     item: {
       type: 'function_call_output',
-      call_id: callInfo.event.call_id,
+      call_id: event.call_id,
       output: JSON.stringify(result)
     }
   }));
@@ -218,15 +211,12 @@ async function triggerResponseCreation() {
   status('AI analyzing...');
 }
 
-async function executeTool(functionName, args, callInfo) {
+async function executeTool(functionName, args, event) {
   const result = await window.oai.executeTool(functionName, args);
-  
-  callInfo.result = result;
-  callInfo.executed = true;
   
   status(result.success ? `${functionName} completed` : `${functionName} failed`);
   
-  await sendFunctionCallResult(callInfo, result);
+  await sendFunctionCallResult(event, result);
 }
 
 function setupDataChannelHandlers() {
@@ -263,33 +253,17 @@ function setupDataChannelHandlers() {
 }
 
 function handleRealtimeEvent(event) {
-  if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
-    handleFunctionCallStarted(event);
-  }
-  else if (event.type === 'response.function_call_arguments.done') {
-    handleFunctionCallDone(event);
-  }
-  else if (event.type === 'response.done') {
-    clearFunctionCallsForResponse(event.response.id);
+  if (event.type === 'response.function_call_arguments.done') {
+    handleFunctionCall(event);
   }
   else if (event.type.startsWith('error')) {
     console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] Error event:`, event.type, event.error);
   }
 }
 
-
-function handleFunctionCallStarted(event) {
-  const item = event.item;
-  const callId = item.call_id;
-  const functionName = item.name;
-  
-  const callInfo = {
-    name: functionName,
-    itemId: item.id,
-    responseId: event.response_id
-  };
-  
-  activeFunctionCalls.set(callId, callInfo);
+function handleFunctionCall(event) {
+  const functionName = event.name;
+  const args = JSON.parse(event.arguments || '{}');
   
   if (functionName === 'take_screenshot') {
     status('Taking screenshot...');
@@ -298,26 +272,6 @@ function handleFunctionCallStarted(event) {
   } else {
     status(`Calling ${functionName}...`);
   }
-}
-
-function clearFunctionCallsForResponse(responseId) {
-  for (const [callId, callInfo] of activeFunctionCalls.entries()) {
-    if (callInfo.responseId === responseId) {
-      activeFunctionCalls.delete(callId);
-    }
-  }
-}
-
-function handleFunctionCallDone(event) {
-  const callInfo = activeFunctionCalls.get(event.call_id);
-  if (!callInfo) return;
   
-  const args = JSON.parse(event.arguments || '{}');
-  
-  callInfo.arguments = args;
-  callInfo.completed = true;
-  callInfo.event = event;
-  
-  status(`Executing ${callInfo.name}...`);
-  executeTool(callInfo.name, args, callInfo);
+  executeTool(functionName, args, event);
 }

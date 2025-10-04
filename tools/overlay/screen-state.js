@@ -12,7 +12,7 @@ let autoAnalysisCallback = null; // Callback to send screenshots for automatic a
 let arrowsActive = false; // Simple arrow state tracking
 let analysisInFlight = false; // Guard against duplicate analysis triggers
 const CAPTURE_DEBOUNCE_MS = 1000; // Don't capture more than once per second
-const SCREENSHOT_DELAY_MS = 2000;  // Wait 2s for UI to settle after click
+const SCREENSHOT_DELAY_MS = 200;  // Quick initial screenshot after click
 
 /**
  * Start automatic screenshot capture on user interactions
@@ -41,7 +41,7 @@ async function startAutoScreenshotCapture(analysisCallback = null) {
       const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
       console.log(`[${timestamp}] 📸 User interaction detected - capturing screenshot in ${SCREENSHOT_DELAY_MS}ms for auto-analysis...`);
       
-      // Wait for screen to update after click
+      // Quick screenshot after click to check loading state
       setTimeout(async () => {
         // Double-check if auto-screenshot is still enabled after timeout
         if (!isAutoScreenshotEnabled) return;
@@ -62,7 +62,7 @@ async function startAutoScreenshotCapture(analysisCallback = null) {
           
           setLastScreenshot(screenshotMeta);
           const successTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-          console.log(`[${successTimestamp}] 📸 ✅ Auto-captured screenshot after user click (${SCREENSHOT_DELAY_MS}ms delay)`);
+          console.log(`[${successTimestamp}] 📸 ✅ Quick screenshot captured (${SCREENSHOT_DELAY_MS}ms) - agent will check for loading`);
           
           // Note: Auto-analysis is now handled by explicit queueAutoScreenshotAndAnalyze() calls
           // This path is only for regular screenshot capture without analysis
@@ -73,7 +73,7 @@ async function startAutoScreenshotCapture(analysisCallback = null) {
         } else {
           console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 ❌ Auto-screenshot failed:`, screenshotResult.error);
         }
-      }, SCREENSHOT_DELAY_MS); // Wait for screen to update after click
+      }, SCREENSHOT_DELAY_MS); // Quick initial screenshot
       
     } catch (error) {
       console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 ❌ Auto-screenshot error:`, error.message);
@@ -172,7 +172,7 @@ async function queueAutoScreenshotAndAnalyze(reason = 'interaction', forceAnalys
   
   analysisInFlight = true;
   const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-  console.log(`[${timestamp}] 📸 Queuing screenshot and analysis (${reason}) in ${SCREENSHOT_DELAY_MS}ms...`);
+  console.log(`[${timestamp}] 📸 Queuing quick screenshot and analysis (${reason}) in ${SCREENSHOT_DELAY_MS}ms...`);
 
   setTimeout(async () => {
     try {

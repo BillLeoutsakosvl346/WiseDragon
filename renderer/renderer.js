@@ -99,10 +99,47 @@ async function start() {
     const answer = { type: 'answer', sdp: await resp.text() };
     await pc.setRemoteDescription(answer);
     
+    // Send initial greeting after connection is established
+    sendInitialGreeting();
+    
   } catch (error) {
     console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] Connection failed:`, error.message);
     status(`Connection failed: ${error.message}`);
     btnConn.disabled = false;
+  }
+}
+
+async function sendInitialGreeting() {
+  // Wait a moment for data channel to be fully ready
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  if (!dataChannel || dataChannel.readyState !== 'open') {
+    console.log('DataChannel not ready for initial greeting, waiting...');
+    // Try again after another delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  if (dataChannel && dataChannel.readyState === 'open') {
+    console.log('👋 Sending initial greeting...');
+    
+    dataChannel.send(JSON.stringify({
+      type: 'conversation.item.create',
+      event_id: generateEventId(),
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: window.prompts.INITIAL_GREETING_PROMPT
+          }
+        ]
+      }
+    }));
+    
+    await triggerResponseCreation();
+  } else {
+    console.log('DataChannel still not ready, skipping initial greeting');
   }
 }
 

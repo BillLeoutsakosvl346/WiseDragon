@@ -8,7 +8,7 @@
 module.exports = {
   type: "function",
   name: "show_arrow_overlay",
-  description: "Show arrow for almost ALL guidance - arrows are your primary feature. DO NOT use ONLY for extremely basic tasks: opening apps from Start menu/taskbar (Chrome, Settings, Calculator), clicking obvious taskbar icons. USE arrows for everything else: buttons on websites, menu items in apps, settings options, links, text fields, icons, ANY element that requires locating on screen. Be very liberal with arrows - they help users navigate efficiently.",
+  description: "Point to UI elements with arrows. Always speak naturally before placing arrow (e.g., 'Let me show you', 'Here it is', 'Go to this section'). Use for ALL elements inside apps - buttons, dropdowns, links, switches, fields. NOT for opening apps from taskbar. Be very proactive with arrows.",
   parameters: {
     type: "object",
     properties: {

@@ -12,7 +12,7 @@ let autoAnalysisCallback = null; // Callback to send screenshots for automatic a
 let arrowsActive = false; // Simple arrow state tracking
 let analysisInFlight = false; // Guard against duplicate analysis triggers
 const CAPTURE_DEBOUNCE_MS = 1000; // Don't capture more than once per second
-const SCREENSHOT_DELAY_MS = 200;  // Quick initial screenshot after click
+const SCREENSHOT_DELAY_MS = 1000;  // Wait 1 second after click before screenshot
 
 /**
  * Start automatic screenshot capture on user interactions
@@ -62,7 +62,7 @@ async function startAutoScreenshotCapture(analysisCallback = null) {
           
           setLastScreenshot(screenshotMeta);
           const successTimestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-          console.log(`[${successTimestamp}] 📸 ✅ Quick screenshot captured (${SCREENSHOT_DELAY_MS}ms) - agent will check for loading`);
+          console.log(`[${successTimestamp}] 📸 ✅ Screenshot captured (${SCREENSHOT_DELAY_MS}ms delay) - agent will check for loading`);
           
           // Note: Auto-analysis is now handled by explicit queueAutoScreenshotAndAnalyze() calls
           // This path is only for regular screenshot capture without analysis
@@ -73,7 +73,7 @@ async function startAutoScreenshotCapture(analysisCallback = null) {
         } else {
           console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 ❌ Auto-screenshot failed:`, screenshotResult.error);
         }
-      }, SCREENSHOT_DELAY_MS); // Quick initial screenshot
+      }, SCREENSHOT_DELAY_MS); // Wait for screen to settle after click
       
     } catch (error) {
       console.error(`[${new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23)}] 📸 ❌ Auto-screenshot error:`, error.message);
@@ -172,7 +172,7 @@ async function queueAutoScreenshotAndAnalyze(reason = 'interaction', forceAnalys
   
   analysisInFlight = true;
   const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '').substring(11, 23);
-  console.log(`[${timestamp}] 📸 Queuing quick screenshot and analysis (${reason}) in ${SCREENSHOT_DELAY_MS}ms...`);
+  console.log(`[${timestamp}] 📸 Queuing screenshot and analysis (${reason}) in ${SCREENSHOT_DELAY_MS}ms...`);
 
   setTimeout(async () => {
     try {

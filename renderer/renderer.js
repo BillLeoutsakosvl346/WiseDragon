@@ -217,10 +217,21 @@ async function sendFunctionCallResult(event, result) {
   
   // Handle arrow overlay with image
   if (result.image && event.name === 'show_arrow_overlay') {
-    result = {
-      success: result.success,
-      message: window.prompts.ARROW_PLACEMENT_SUCCESS
-    };
+    // Send function call output without triggering response - agent should stay silent
+    dataChannel.send(JSON.stringify({
+      type: 'conversation.item.create',
+      event_id: generateEventId(),
+      item: {
+        type: 'function_call_output',
+        call_id: event.call_id,
+        output: JSON.stringify({
+          success: result.success,
+          message: 'Arrow placed successfully'
+        })
+      }
+    }));
+    // Do NOT trigger response - agent must stay silent after placing arrow
+    return;
   }
   
   // Send standard function call output

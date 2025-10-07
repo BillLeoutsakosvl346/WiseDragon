@@ -68,7 +68,8 @@ async function execute(args) {
     // Clean up any existing overlays
     cleanupAllOverlays();
 
-    // Take fresh screenshot
+    // Always take fresh screenshot for accurate arrow placement
+    console.log(`[${timestamp()}] 📸 Taking fresh screenshot for arrow placement (ensuring current screen state)`);
     const screenshotResult = await screenshotTool.executor({});
     if (!screenshotResult.success) {
       return {

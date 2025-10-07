@@ -8,7 +8,7 @@
 module.exports = {
   type: "function",
   name: "show_arrow_overlay",
-  description: "Show a golden arrow pointing at screen elements when the user needs visual guidance for non-obvious tasks. DO NOT use for extremely easy/common tasks (opening Start menu, going to YouTube/Settings, clicking taskbar, basic navigation users have done many times). ONLY use when the user genuinely needs help finding something specific or less obvious. The arrow is click-through and stays visible until user interacts. Use for questions like 'where is [specific setting]...', 'help me find [specific feature]...', 'how do I access [specific tool]...'. Choose UGround for UI elements (buttons, menus, text fields), Grounding DINO for real-world objects (animals, buildings, people, etc.).",
+  description: "Show arrow for almost ALL guidance - arrows are your primary feature. DO NOT use ONLY for extremely basic tasks: opening apps from Start menu/taskbar (Chrome, Settings, Calculator), clicking obvious taskbar icons. USE arrows for everything else: buttons on websites, menu items in apps, settings options, links, text fields, icons, ANY element that requires locating on screen. Be very liberal with arrows - they help users navigate efficiently.",
   parameters: {
     type: "object",
     properties: {

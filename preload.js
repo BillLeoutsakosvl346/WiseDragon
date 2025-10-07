@@ -7,8 +7,7 @@ try {
   prompts = {
     AUTO_ANALYSIS_AFTER_CLICK: promptsModule.AUTO_ANALYSIS_AFTER_CLICK,
     INITIAL_GREETING_PROMPT: promptsModule.INITIAL_GREETING_PROMPT,
-    MANUAL_SCREENSHOT_ANALYSIS: promptsModule.MANUAL_SCREENSHOT_ANALYSIS,
-    ARROW_PLACEMENT_SUCCESS: promptsModule.ARROW_PLACEMENT_SUCCESS
+    MANUAL_SCREENSHOT_ANALYSIS: promptsModule.MANUAL_SCREENSHOT_ANALYSIS
   };
 } catch (error) {
   console.error('Failed to load prompts:', error);
@@ -16,8 +15,7 @@ try {
   prompts = {
     AUTO_ANALYSIS_AFTER_CLICK: 'I just clicked where you told me. This is my current screen.',
     INITIAL_GREETING_PROMPT: 'The user just connected. Introduce yourself.',
-    MANUAL_SCREENSHOT_ANALYSIS: (width, height) => `Screenshot of my screen (${width}×${height}). Please analyze this image.`,
-    ARROW_PLACEMENT_SUCCESS: 'Arrow placed successfully. Continue conversation naturally.'
+    MANUAL_SCREENSHOT_ANALYSIS: (width, height) => `Screenshot of my screen (${width}×${height}). Please analyze this image.`
   };
 }
 

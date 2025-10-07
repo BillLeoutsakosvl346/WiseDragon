@@ -97,7 +97,9 @@ async function execute(args = {}) {
       displayBounds: disp.bounds,
       imageW: compressed.finalWidth,
       imageH: compressed.finalHeight,
-      path: filePath
+      path: filePath,
+      buffer: compressed.buffer,
+      capturedAt: new Date().toISOString()
     });
     
     console.log(`[${timestamp()}] ✅ Screenshot saved: ${path.basename(filePath)}`);
